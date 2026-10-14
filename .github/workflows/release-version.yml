@@ -1,0 +1,93 @@
+name: Auto version
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      kind:
+        description: >-
+          Release kind to propose regardless of the measured markers;
+          measured keeps the push behaviour
+        required: false
+        default: measured
+        type: choice
+        options:
+          - measured
+          - patch
+          - minor
+          - major
+
+permissions:
+  contents: read
+
+concurrency:
+  group: auto-version
+  cancel-in-progress: false
+
+jobs:
+  version:
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      !startsWith(github.event.head_commit.message, 'chore(main): release')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      actions: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Require a package change since the approved release
+        id: candidate
+        env:
+          RELEASE_KIND: ${{ inputs.kind }}
+        run: python3 -m scripts.release_publish candidate
+      - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4
+        if: steps.candidate.outputs.eligible == 'true'
+        with:
+          python-version: '3.12'
+      - name: Require acceptance evidence for a minor or major release
+        if: steps.candidate.outputs.eligible == 'true'
+        env:
+          RELEASE_VERSION: ${{ steps.candidate.outputs.version }}
+        run: uv run --locked python -m scripts.release_publish evidence
+      - uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1
+        if: steps.candidate.outputs.eligible == 'true'
+        id: app
+        with:
+          app-id: ${{ vars.RELEASE_BOT_APP_ID }}
+          private-key: ${{ secrets.RELEASE_BOT_PRIVATE_KEY }}
+      - name: Raise every version marker and record the changelog
+        if: steps.candidate.outputs.eligible == 'true'
+        env:
+          RELEASE_VERSION: ${{ steps.candidate.outputs.version }}
+        run: python3 -m scripts.release_publish bump
+      - name: Confirm the raised markers agree
+        if: steps.candidate.outputs.eligible == 'true'
+        run: python3 -m scripts.check_policy
+      - name: Commit the release and push its tag
+        if: steps.candidate.outputs.eligible == 'true'
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          GH_REPO: ${{ github.repository }}
+          VERSION: ${{ steps.candidate.outputs.version }}
+        run: |
+          set -euo pipefail
+          remote="https://x-access-token:${GH_TOKEN}@github.com/${GH_REPO}.git"
+          git config --local user.name 'agent-parley release'
+          git config --local user.email 'release@users.noreply.github.com'
+          git commit --all --message "chore(main): release ${VERSION}"
+          git tag --annotate "v${VERSION}" --message "Release v${VERSION}"
+          git push "${remote}" HEAD:main
+          git push "${remote}" "v${VERSION}"
+      - name: Start publication for the pushed tag
+        if: steps.candidate.outputs.eligible == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          VERSION: ${{ steps.candidate.outputs.version }}
+        run: gh workflow run release.yml --field "tag=v${VERSION}"

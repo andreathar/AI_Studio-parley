@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="973" height="228" viewBox="0 0 973 228" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace" font-size="13">
+<rect width="973" height="228" rx="10" fill="#0d1117"/>
+<rect width="973" height="30" rx="10" fill="#161b22"/>
+<rect y="20" width="973" height="10" fill="#161b22"/>
+<circle cx="18" cy="15" r="5.5" fill="#ff5f57"/><circle cx="36" cy="15" r="5.5" fill="#febc2e"/><circle cx="54" cy="15" r="5.5" fill="#28c840"/>
+<text x="486.5" y="19" text-anchor="middle" fill="#8b949e" font-size="12">native hooks · enforcement and delivery</text>
+<text x="18.0" y="48.0" xml:space="preserve" fill="#c9d1d9"># a branch switch attempted inside an assigned lane</text>
+<text x="18.0" y="66.0" xml:space="preserve"><tspan fill="#d2a8ff">claude-1 </tspan><tspan fill="#e6edf3">PreToolUse Bash: git switch -c hotfix</tspan></text>
+<text x="18.0" y="84.0" xml:space="preserve" fill="#ff7b72">deny   Agent Parley owns this worktree on 'parley/e0b73b26cdf9a71a/lane-1'; branch switches are blocked. Create or use a</text>
+<text x="18.0" y="102.0" xml:space="preserve" fill="#c9d1d9">       separate worktree for feature branches.</text>
+<text x="18.0" y="120.0" xml:space="preserve" fill="#c9d1d9"></text>
+<text x="18.0" y="138.0" xml:space="preserve" fill="#c9d1d9"># a lane left on another branch is stopped at its next call</text>
+<text x="18.0" y="156.0" xml:space="preserve"><tspan fill="#d2a8ff">codex-1 </tspan><tspan fill="#e6edf3">PreToolUse Bash: cat src/payments/refund.py</tspan></text>
+<text x="18.0" y="174.0" xml:space="preserve" fill="#ff7b72">deny   Agent Parley lane is on 'refund-spike', expected 'parley/e0b73b26cdf9a71a/lane-2'. Restore it with `git switch</text>
+<text x="18.0" y="192.0" xml:space="preserve" fill="#c9d1d9">       parley/e0b73b26cdf9a71a/lane-2` before continuing; committed and uncommitted work must be preserved.</text>
+</svg>

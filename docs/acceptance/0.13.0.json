@@ -1,0 +1,9 @@
+{
+  "version": "0.13.0",
+  "run": "https://github.com/suneel944/agent-parley/issues/366#issuecomment-5860778628",
+  "lanes": 8,
+  "claims": 20,
+  "claims_completed": 20,
+  "idle_lane_minutes": 11481.8,
+  "unaccountable_claim_minutes": 28513.3
+}

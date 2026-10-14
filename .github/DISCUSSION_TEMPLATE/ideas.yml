@@ -1,0 +1,25 @@
+title: "idea: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: "Discuss an idea before it becomes a focused issue. A proposal that gains a clear problem and acceptance criteria moves to a feature request."
+  - type: textarea
+    id: problem
+    attributes:
+      label: Coordination problem
+      description: What happened between lanes, providers or the operator that this idea would fix.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: What should happen instead, and which providers it applies to.
+    validations:
+      required: true
+  - type: textarea
+    id: boundaries
+    attributes:
+      label: Boundaries
+      description: Effects on native CLI permissions, state compatibility, and context cost.

@@ -1,0 +1,32 @@
+name: Bug report
+description: Report a reproducible problem with Agent Parley.
+title: "bug: "
+body:
+  - type: markdown
+    attributes:
+      value: "For vulnerabilities, use SECURITY.md. Do not include credentials or private state."
+  - type: input
+    id: version
+    attributes:
+      label: Version and environment
+      description: Agent Parley version, operating system, Python and native CLI versions.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction
+      description: Minimal steps using a disposable repository, if possible.
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Expected and actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Redacted evidence
+      description: Relevant errors or measurements. Never upload the state directory.

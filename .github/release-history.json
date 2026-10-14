@@ -1,0 +1,12 @@
+{
+  "migrations": {
+    "v0.1.1": {
+      "original": "5a45a2d076531936a653e31873fd176d29b232e2",
+      "rewritten": "2c406150c9f559d5e975d88b645effbb449cf46d"
+    }
+  },
+  "retired": ["0.1.2"],
+  "issue_references": {
+    "4edd3fc6ed0f77bf516008b7d2f16f4fef578415": [105, 115, 118, 129, 130, 131, 140]
+  }
+}

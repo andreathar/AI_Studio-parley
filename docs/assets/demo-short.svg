@@ -1,0 +1,98 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1067" height="564" viewBox="0 0 1067 564" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace" font-size="13">
+<defs><radialGradient id="backdrop" cx="50%" cy="38%" r="75%"><stop offset="0" stop-color="#1b2a4a"/><stop offset="0.55" stop-color="#0d1117"/><stop offset="1" stop-color="#010409"/></radialGradient><linearGradient id="accent" x1="0" x2="1067" y1="0" y2="0" gradientUnits="userSpaceOnUse"><stop offset="0.2" stop-color="#79c0ff"/><stop offset="0.5" stop-color="#d2a8ff"/><stop offset="0.8" stop-color="#7ee787"/></linearGradient></defs>
+<rect width="1067" height="564" rx="10" fill="#0d1117"/>
+<rect width="1067" height="30" rx="10" fill="#161b22"/>
+<rect y="20" width="1067" height="10" fill="#161b22"/>
+<circle cx="18" cy="15" r="5.5" fill="#ff5f57"/><circle cx="36" cy="15" r="5.5" fill="#febc2e"/><circle cx="54" cy="15" r="5.5" fill="#28c840"/>
+<rect y="516.0" width="1067" height="48.0" fill="#161b22"/>
+<rect y="516.0" width="1067" height="1" fill="#30363d"/>
+<g opacity="1">
+<animate attributeName="opacity" values="1;1;0;0" keyTimes="0.000000;0.212448;0.227068;1.000000" dur="23.94s" repeatCount="indefinite"/>
+<text x="533.5" y="19" text-anchor="middle" fill="#8b949e" font-family="system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12"></text>
+<clipPath id="type0"><rect x="33.62" y="52.0" height="18.0" width="0"><animate attributeName="width" values="0;0;210.9;210.9" keyTimes="0.000000;0.014620;0.046199;1.000000" dur="23.94s" repeatCount="indefinite"/></rect></clipPath>
+<text x="18.0" y="66.0" xml:space="preserve" fill="#7ee787">$</text>
+<text x="33.62" y="66.0" xml:space="preserve" fill="#e6edf3" clip-path="url(#type0)">agent-parley issue claim 41</text>
+<rect y="54.0" width="8" height="15" fill="#e6edf3"><animate attributeName="x" values="33.6;33.6;244.5;244.5" keyTimes="0.000000;0.014620;0.046199;1.000000" dur="23.94s" repeatCount="indefinite"/><animate attributeName="opacity" values="1;1;0;0" keyTimes="0.000000;0.054553;0.054553;1.000000" dur="23.94s" repeatCount="indefinite"/></rect>
+<g><animate attributeName="opacity" values="0;0;1;1" keyTimes="0.000000;0.052464;0.064996;1.000000" dur="23.94s" repeatCount="indefinite"/>
+<text x="18.0" y="84.0" xml:space="preserve" fill="#c9d1d9">{</text>
+<text x="18.0" y="102.0" xml:space="preserve" fill="#c9d1d9">  "owner": "ada",</text>
+<text x="18.0" y="120.0" xml:space="preserve" fill="#c9d1d9">  "offer": null,</text>
+<text x="18.0" y="138.0" xml:space="preserve" fill="#c9d1d9">  "request": null,</text>
+<text x="18.0" y="156.0" xml:space="preserve" fill="#ff7b72">  "blocked_by": [],</text>
+<text x="18.0" y="174.0" xml:space="preserve" fill="#c9d1d9">  "history": [</text>
+<text x="18.0" y="192.0" xml:space="preserve" fill="#c9d1d9">    {</text>
+<text x="18.0" y="210.0" xml:space="preserve" fill="#c9d1d9">[26 lines not shown]</text>
+<text x="18.0" y="228.0" xml:space="preserve" fill="#c9d1d9">    "progress": null,</text>
+<text x="18.0" y="246.0" xml:space="preserve" fill="#c9d1d9">    "backlog": null</text>
+<text x="18.0" y="264.0" xml:space="preserve" fill="#c9d1d9">  }</text>
+<text x="18.0" y="282.0" xml:space="preserve" fill="#c9d1d9">}</text>
+</g>
+<rect x="18.0" y="528.0" width="4" height="24" rx="2" fill="url(#accent)"/><text x="34.0" y="545.0" fill="#e6edf3" font-family="system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="16">ada claims #41 from inside its lane.</text>
+</g>
+<g opacity="0">
+<animate attributeName="opacity" values="0;0;1;1;0;0" keyTimes="0.000000;0.227068;0.241688;0.477861;0.492481;1.000000" dur="23.94s" repeatCount="indefinite"/>
+<text x="533.5" y="19" text-anchor="middle" fill="#8b949e" font-family="system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12"></text>
+<clipPath id="type5436"><rect x="64.86" y="52.0" height="18.0" width="0"><animate attributeName="width" values="0;0;413.9;413.9" keyTimes="0.000000;0.241688;0.303676;1.000000" dur="23.94s" repeatCount="indefinite"/></rect></clipPath>
+<text x="18.0" y="66.0" xml:space="preserve" fill="#d2a8ff">grace</text>
+<text x="64.86" y="66.0" xml:space="preserve" fill="#e6edf3" clip-path="url(#type5436)">file_reservation_paths {"paths": ["src/payments/**"]}</text>
+<rect y="54.0" width="8" height="15" fill="#e6edf3"><animate attributeName="x" values="64.9;64.9;478.8;478.8" keyTimes="0.000000;0.241688;0.303676;1.000000" dur="23.94s" repeatCount="indefinite"/><animate attributeName="opacity" values="1;1;0;0" keyTimes="0.000000;0.312030;0.312030;1.000000" dur="23.94s" repeatCount="indefinite"/></rect>
+<g><animate attributeName="opacity" values="0;0;1;1" keyTimes="0.000000;0.309942;0.322473;1.000000" dur="23.94s" repeatCount="indefinite"/>
+<text x="18.0" y="84.0" xml:space="preserve" fill="#c9d1d9">{</text>
+<text x="18.0" y="102.0" xml:space="preserve" fill="#c9d1d9">  "granted": [],</text>
+<text x="18.0" y="120.0" xml:space="preserve" fill="#ff7b72">  "conflicts": [</text>
+<text x="18.0" y="138.0" xml:space="preserve" fill="#c9d1d9">    {</text>
+<text x="18.0" y="156.0" xml:space="preserve" fill="#c9d1d9">      "path": "src/payments/**",</text>
+<text x="18.0" y="174.0" xml:space="preserve" fill="#c9d1d9">      "owner": "ada"</text>
+<text x="18.0" y="192.0" xml:space="preserve" fill="#c9d1d9">    }</text>
+<text x="18.0" y="210.0" xml:space="preserve" fill="#c9d1d9">  ],</text>
+<text x="18.0" y="228.0" xml:space="preserve" fill="#c9d1d9">  "has_more": false</text>
+<text x="18.0" y="246.0" xml:space="preserve" fill="#c9d1d9">}</text>
+</g>
+<rect x="18.0" y="528.0" width="4" height="24" rx="2" fill="url(#accent)"/><text x="34.0" y="545.0" fill="#e6edf3" font-family="system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="16">grace asks for the same paths: a named collision.</text>
+</g>
+<g opacity="0">
+<animate attributeName="opacity" values="0;0;1;1;0;0" keyTimes="0.000000;0.492481;0.507101;0.751462;0.766082;1.000000" dur="23.94s" repeatCount="indefinite"/>
+<text x="533.5" y="19" text-anchor="middle" fill="#8b949e" font-family="system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12"></text>
+<clipPath id="type11790"><rect x="33.62" y="52.0" height="18.0" width="0"><animate attributeName="width" values="0;0;562.3;562.3" keyTimes="0.000000;0.507101;0.573935;1.000000" dur="23.94s" repeatCount="indefinite"/></rect></clipPath>
+<text x="18.0" y="66.0" xml:space="preserve" fill="#7ee787">$</text>
+<text x="33.62" y="66.0" xml:space="preserve" fill="#e6edf3" clip-path="url(#type11790)">agent-parley issue accept 41 --offer-id ce5161cfe54044d48e510485c6b46a96</text>
+<rect y="54.0" width="8" height="15" fill="#e6edf3"><animate attributeName="x" values="33.6;33.6;595.9;595.9" keyTimes="0.000000;0.507101;0.573935;1.000000" dur="23.94s" repeatCount="indefinite"/><animate attributeName="opacity" values="1;1;0;0" keyTimes="0.000000;0.582289;0.582289;1.000000" dur="23.94s" repeatCount="indefinite"/></rect>
+<g><animate attributeName="opacity" values="0;0;1;1" keyTimes="0.000000;0.580201;0.592732;1.000000" dur="23.94s" repeatCount="indefinite"/>
+<text x="18.0" y="84.0" xml:space="preserve" fill="#c9d1d9">{</text>
+<text x="18.0" y="102.0" xml:space="preserve" fill="#c9d1d9">  "owner": "grace",</text>
+<text x="18.0" y="120.0" xml:space="preserve" fill="#c9d1d9">  "offer": null,</text>
+<text x="18.0" y="138.0" xml:space="preserve" fill="#c9d1d9">  "request": null,</text>
+<text x="18.0" y="156.0" xml:space="preserve" fill="#ff7b72">  "blocked_by": [],</text>
+<text x="18.0" y="174.0" xml:space="preserve" fill="#c9d1d9">  "history": [</text>
+<text x="18.0" y="192.0" xml:space="preserve" fill="#c9d1d9">    {</text>
+<text x="18.0" y="210.0" xml:space="preserve" fill="#c9d1d9">[71 lines not shown]</text>
+<text x="18.0" y="228.0" xml:space="preserve" fill="#c9d1d9">  "reservations_moved": [</text>
+<text x="18.0" y="246.0" xml:space="preserve" fill="#c9d1d9">    "src/payments/**"</text>
+<text x="18.0" y="264.0" xml:space="preserve" fill="#c9d1d9">  ]</text>
+<text x="18.0" y="282.0" xml:space="preserve" fill="#c9d1d9">}</text>
+</g>
+<rect x="18.0" y="528.0" width="4" height="24" rx="2" fill="url(#accent)"/><text x="34.0" y="545.0" fill="#e6edf3" font-family="system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="16">grace accepts; only then does ownership move.</text>
+</g>
+<g opacity="0">
+<animate attributeName="opacity" values="0;0;1;1" keyTimes="0.000000;0.766082;0.780702;1.000000" dur="23.94s" repeatCount="indefinite"/>
+<text x="533.5" y="19" text-anchor="middle" fill="#8b949e" font-family="system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12"></text>
+<clipPath id="type18340"><rect x="33.62" y="52.0" height="18.0" width="0"><animate attributeName="width" values="0;0;179.6;179.6" keyTimes="0.000000;0.780702;0.807602;1.000000" dur="23.94s" repeatCount="indefinite"/></rect></clipPath>
+<text x="18.0" y="66.0" xml:space="preserve" fill="#7ee787">$</text>
+<text x="33.62" y="66.0" xml:space="preserve" fill="#e6edf3" clip-path="url(#type18340)">agent-parley top --once</text>
+<rect y="54.0" width="8" height="15" fill="#e6edf3"><animate attributeName="x" values="33.6;33.6;213.2;213.2" keyTimes="0.000000;0.780702;0.807602;1.000000" dur="23.94s" repeatCount="indefinite"/><animate attributeName="opacity" values="1;1;0;0" keyTimes="0.000000;0.815957;0.815957;1.000000" dur="23.94s" repeatCount="indefinite"/></rect>
+<g><animate attributeName="opacity" values="0;0;1;1" keyTimes="0.000000;0.813868;0.826399;1.000000" dur="23.94s" repeatCount="indefinite"/>
+<text x="18.0" y="84.0" xml:space="preserve" fill="#79c0ff">agent-parley top - 05:45:18  server running  projects 1  read 0.07s</text>
+<text x="18.0" y="102.0" xml:space="preserve" fill="#79c0ff">Lanes: 2 total, 1 starting, 1 working   Issues: 1 held</text>
+<text x="18.0" y="120.0" xml:space="preserve" fill="#79c0ff">Mail: 0 unread   Leases: 1 held   Hooks (all retained): 3 events, 1 denied (33%)   Context: 955B</text>
+<text x="18.0" y="138.0" xml:space="preserve" fill="#c9d1d9">Hidden columns: BRANCH</text>
+<text x="18.0" y="156.0" xml:space="preserve" fill="#c9d1d9"></text>
+<text x="18.0" y="174.0" xml:space="preserve" fill="#79c0ff">project /home/dev/payments-api</text>
+<text x="18.0" y="192.0" xml:space="preserve" fill="#79c0ff">PARTICIPANT     STATE                              ISSUES      MAIL       LEASES     DENIALS    TOKENS     IDLE      TASK</text>
+<text x="18.0" y="210.0" xml:space="preserve" fill="#c9d1d9">ada             working 16s; inferred by liveness  -           0/0        0          1/2                   0s        Check shared c…</text>
+<text x="18.0" y="228.0" xml:space="preserve" fill="#c9d1d9">grace           starting 8s                        #41         0/0        1 1s       0/1                   0s        Check shared c…</text>
+<text x="18.0" y="246.0" xml:space="preserve" fill="#c9d1d9">Live view: top without --once; ? explains each column.</text>
+</g>
+<rect x="18.0" y="528.0" width="4" height="24" rx="2" fill="url(#accent)"/><text x="34.0" y="545.0" fill="#e6edf3" font-family="system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="16">The dashboard: state, issues, mail, leases, denials.</text>
+</g>
+<rect y="561" height="3" width="0" fill="url(#accent)"><animate attributeName="width" values="0;1067" dur="23.94s" repeatCount="indefinite"/></rect>
+</svg>

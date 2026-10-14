@@ -1,0 +1,38 @@
+{
+  "name": "agent-parley",
+  "version": "0.18.0",
+  "protocol": 1,
+  "description": "Run several coding agents side by side on one repository with shared issue ownership, advisory file reservations, and explicit handoffs.",
+  "author": {
+    "name": "Suneel Kaushik S",
+    "email": "suneel944@gmail.com"
+  },
+  "skills": "./skills/",
+  "keywords": [
+    "agents",
+    "coordination",
+    "git-worktree"
+  ],
+  "interface": {
+    "displayName": "Agent Parley",
+    "shortDescription": "Coordinate coding agents",
+    "longDescription": "Agent Parley is a developer tool for software engineers who run more than one AI coding agent on the same Git repository at the same time. It keeps those agents from overwriting each other's work.\n\nWhat it does: each agent works in its own Git worktree. Before editing, an agent claims a numbered issue, and every other agent can see the claim. Agents reserve the files they plan to change, so a peer sees the conflict and stops. Work moves between agents through an explicit handoff that carries the commit, the checks that ran, and what remains. With this skill, the agent in this session can show coordination status, claim issues, report results, read and send messages, and offer or accept handoffs.\n\nWho it is for: developers who split the work in one repository across several coding agents running on the same machine.\n\nLimitations: the skill needs the agent-parley command line tool, installed separately from PyPI. Coordination state stays on the local machine. File reservations are advisory, so nothing on disk is locked. Results are reported as agent claims with evidence, not as independent verification. Native Windows is not supported; use WSL2.",
+    "developerName": "Suneel Kaushik S",
+    "category": "Developer Tools",
+    "websiteURL": "https://suneel944.github.io/agent-parley/",
+    "supportURL": "https://github.com/suneel944/agent-parley/issues",
+    "privacyPolicyURL": "https://github.com/suneel944/agent-parley/blob/main/docs/privacy.md",
+    "termsOfServiceURL": "https://github.com/suneel944/agent-parley/blob/main/docs/terms.md",
+    "logo": "./assets/logo.png",
+    "composerIcon": "./assets/icon.png",
+    "capabilities": [
+      "Interactive",
+      "Write"
+    ],
+    "defaultPrompt": [
+      "Show which agent owns each open issue in this repository and what each one last reported.",
+      "Split the open v2.1 issues with the other agent on this repository, claim my half, and tell it which ones to start.",
+      "The other agent stalled on issue 42. Take its handoff with the commit and checks, then finish the work here."
+    ]
+  }
+}

@@ -1,0 +1,82 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing tag matching the approved version on main
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-publication
+  cancel-in-progress: false
+
+jobs:
+  build:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    outputs:
+      checksum: ${{ steps.prepare.outputs.checksum }}
+      source: ${{ steps.validate.outputs.source }}
+    env:
+      RELEASE_TAG: ${{ inputs.tag }}
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Validate the exact tag and approved version
+        id: validate
+        run: python3 -m scripts.release_publish validate
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ steps.validate.outputs.source }}
+          path: release-source
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: ./.github/actions/secret-scan
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7
+      - run: make check
+        working-directory: release-source
+      - name: Prepare or reuse verified release assets
+        id: prepare
+        run: python3 -m scripts.release_publish prepare
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      id-token: write
+    env:
+      RELEASE_TAG: ${{ inputs.tag }}
+      RELEASE_CHECKSUM: ${{ needs.build.outputs.checksum }}
+      RELEASE_SOURCE: ${{ needs.build.outputs.source }}
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify assets and stage only missing PyPI files
+        id: stage
+        run: python3 -m scripts.release_publish stage
+      - name: Publish to PyPI
+        if: steps.stage.outputs.pending == 'true'
+        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33
+        with:
+          packages-dir: dist/pypi
+          print-hash: true
+      - name: Verify PyPI hashes before publishing the GitHub release
+        run: python3 -m scripts.release_publish finish

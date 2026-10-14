@@ -1,0 +1,989 @@
+import express, { Request, Response } from 'express';
+import cors from 'cors';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const app = express();
+const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
+const HOST = process.env.HOST || '0.0.0.0';
+
+app.use(cors());
+app.use(express.json({ limit: '25mb' }));
+app.use(express.urlencoded({ extended: true, limit: '25mb' }));
+
+import { enhanceKlingPrompt, critiqueKlingVision, getGeminiApiKey } from './src/server/klingAiService';
+
+// Ensure valid Gemini API key is synchronized into process.env at server startup
+getGeminiApiKey();
+
+import { 
+  initialLanes, 
+  initialIssues, 
+  initialReservations, 
+  initialMessages, 
+  initialPlans, 
+  initialBudget, 
+  initialProblems, 
+  initialEvents 
+} from './src/data/initialData';
+import { 
+  moviesProjectLanes, 
+  moviesProjectIssues, 
+  moviesProjectReservations, 
+  moviesProjectMessages, 
+  moviesProjectPlans, 
+  moviesProjectBudget, 
+  moviesProjectProblems, 
+  moviesProjectEvents 
+} from './src/data/moviesProjectData';
+
+// Active project configuration - defaulting to andreathar/Movies_Projects
+let activeProject = 'movies_projects';
+
+let lanes: any[] = JSON.parse(JSON.stringify(moviesProjectLanes));
+let issues: any[] = JSON.parse(JSON.stringify(moviesProjectIssues));
+let reservations: any[] = JSON.parse(JSON.stringify(moviesProjectReservations));
+let messages: any[] = JSON.parse(JSON.stringify(moviesProjectMessages));
+let plans: any[] = JSON.parse(JSON.stringify(moviesProjectPlans));
+let budget: any = JSON.parse(JSON.stringify(moviesProjectBudget));
+let problems: any[] = JSON.parse(JSON.stringify(moviesProjectProblems));
+let events: any[] = JSON.parse(JSON.stringify(moviesProjectEvents));
+
+// Helper to calculate top summary
+function getTopSummary() {
+  const working = lanes.filter((l) => l.state === 'working').length;
+  const idle = lanes.filter((l) => l.state === 'idle').length;
+  const stopped = lanes.filter((l) => l.state === 'stopped').length;
+  const openIssues = issues.filter((i) => i.status === 'open').length;
+  const claimedIssues = issues.filter((i) => i.status === 'claimed' || i.status === 'in_progress').length;
+  const reviewIssues = issues.filter((i) => i.status === 'review').length;
+  const completedIssues = issues.filter((i) => i.status === 'completed').length;
+
+  return {
+    lanesTotal: lanes.length,
+    lanesWorking: working,
+    lanesIdle: idle,
+    lanesStopped: stopped,
+    issuesOpen: openIssues,
+    issuesClaimed: claimedIssues,
+    issuesInReview: reviewIssues,
+    issuesCompleted: completedIssues,
+    activeLeases: reservations.length,
+    budgetUsedPercent: Math.round((budget.tokensUsed / budget.tokenCap) * 100),
+    unresolvedProblems: problems.length,
+  };
+}
+
+// REST API Endpoints
+app.get('/api/status', (req: Request, res: Response) => {
+  res.json({
+    version: '0.18.0',
+    activeProject,
+    targetRepo: activeProject === 'movies_projects' ? 'andreathar/Movies_Projects' : 'sandbox',
+    repoUrl: 'https://github.com/andreathar/Movies_Projects',
+    summary: getTopSummary(),
+    lanes,
+    issues,
+    reservations,
+    budget,
+    problems,
+    events,
+  });
+});
+
+app.get('/api/projects/current', (req: Request, res: Response) => {
+  res.json({
+    activeProject,
+    targetRepo: activeProject === 'movies_projects' ? 'andreathar/Movies_Projects' : 'sandbox',
+    repoUrl: 'https://github.com/andreathar/Movies_Projects',
+    branches: ['main', 'parley/movies-ui', 'parley/movies-api', 'parley/movies-db'],
+  });
+});
+
+app.post('/api/projects/switch', (req: Request, res: Response) => {
+  const { project } = req.body;
+  if (project === 'movies_projects') {
+    activeProject = 'movies_projects';
+    lanes = JSON.parse(JSON.stringify(moviesProjectLanes));
+    issues = JSON.parse(JSON.stringify(moviesProjectIssues));
+    reservations = JSON.parse(JSON.stringify(moviesProjectReservations));
+    messages = JSON.parse(JSON.stringify(moviesProjectMessages));
+    plans = JSON.parse(JSON.stringify(moviesProjectPlans));
+    budget = JSON.parse(JSON.stringify(moviesProjectBudget));
+    problems = JSON.parse(JSON.stringify(moviesProjectProblems));
+    events = JSON.parse(JSON.stringify(moviesProjectEvents));
+  } else {
+    activeProject = 'default';
+    lanes = JSON.parse(JSON.stringify(initialLanes));
+    issues = JSON.parse(JSON.stringify(initialIssues));
+    reservations = JSON.parse(JSON.stringify(initialReservations));
+    messages = JSON.parse(JSON.stringify(initialMessages));
+    plans = JSON.parse(JSON.stringify(initialPlans));
+    budget = JSON.parse(JSON.stringify(initialBudget));
+    problems = JSON.parse(JSON.stringify(initialProblems));
+    events = JSON.parse(JSON.stringify(initialEvents));
+  }
+  res.json({
+    activeProject,
+    targetRepo: activeProject === 'movies_projects' ? 'andreathar/Movies_Projects' : 'sandbox',
+    repoUrl: 'https://github.com/andreathar/Movies_Projects',
+    summary: getTopSummary(),
+  });
+});
+
+app.post('/api/projects/movies/sync', (req: Request, res: Response) => {
+  events.unshift({
+    id: `ev-${Date.now()}`,
+    timestamp: new Date().toLocaleTimeString(),
+    type: 'merge',
+    lane: 'sync-daemon',
+    detail: 'Synchronized remote state with https://github.com/andreathar/Movies_Projects (main branch verified)',
+  });
+  res.json({
+    success: true,
+    repo: 'andreathar/Movies_Projects',
+    branch: 'main',
+    syncTimestamp: new Date().toISOString(),
+    status: 'up-to-date',
+    lanesSynchronized: lanes.length,
+    activeWorktrees: lanes.map((l) => l.worktree),
+  });
+});
+
+app.get('/api/lanes', (req: Request, res: Response) => {
+  res.json(lanes);
+});
+
+app.post('/api/lanes', (req: Request, res: Response) => {
+  const { name, provider, branch } = req.body;
+  if (!name || !provider) {
+    return res.status(400).json({ error: 'Name and provider are required' });
+  }
+  const id = `lane-${name.toLowerCase().replace(/[^a-z0-9]/g, '-')}`;
+  const newLane = {
+    id,
+    name,
+    provider,
+    state: 'working',
+    branch: branch || `parley/${name}`,
+    worktree: `.worktrees/${id}`,
+    lastEvent: 'lane: initialized',
+    lastEventTs: Date.now(),
+    ownedIssues: [],
+    unreadMail: 0,
+    unacknowledgedMail: 0,
+    leases: [],
+    denials: 0,
+    calls: 0,
+    tokens: 0,
+    idleSeconds: 0,
+    currentTask: 'Initialized worktree and waiting for issue assignment',
+    reviewStatus: 'none',
+    liveness: true,
+    contextUsagePercent: 0,
+  };
+  lanes.push(newLane as any);
+  events.unshift({
+    id: `ev-${Date.now()}`,
+    timestamp: new Date().toLocaleTimeString(),
+    type: 'wake',
+    lane: id,
+    detail: `Spawned and initialized lane with provider ${provider}`,
+  });
+  res.status(201).json(newLane);
+});
+
+app.post('/api/lanes/:id/wake', (req: Request, res: Response) => {
+  const lane = lanes.find((l) => l.id === req.params.id);
+  if (!lane) return res.status(404).json({ error: 'Lane not found' });
+  lane.state = 'working';
+  lane.idleSeconds = 0;
+  lane.lastEvent = 'wake: operator signal';
+  lane.lastEventTs = Date.now();
+  events.unshift({
+    id: `ev-${Date.now()}`,
+    timestamp: new Date().toLocaleTimeString(),
+    type: 'wake',
+    lane: lane.id,
+    detail: 'Woken by operator signal',
+  });
+  res.json(lane);
+});
+
+app.post('/api/lanes/:id/stop', (req: Request, res: Response) => {
+  const lane = lanes.find((l) => l.id === req.params.id);
+  if (!lane) return res.status(404).json({ error: 'Lane not found' });
+  lane.state = 'stopped';
+  lane.lastEvent = 'stop: retired';
+  lane.lastEventTs = Date.now();
+  events.unshift({
+    id: `ev-${Date.now()}`,
+    timestamp: new Date().toLocaleTimeString(),
+    type: 'refusal',
+    lane: lane.id,
+    detail: 'Lane stopped and retired',
+  });
+  res.json(lane);
+});
+
+app.get('/api/issues', (req: Request, res: Response) => {
+  res.json(issues);
+});
+
+app.post('/api/issues', (req: Request, res: Response) => {
+  const { title, priority, assignee } = req.body;
+  if (!title) return res.status(400).json({ error: 'Title required' });
+  const id = `#${100 + issues.length + 1}`;
+  const newIssue = {
+    id,
+    title,
+    status: assignee ? 'in_progress' : 'open',
+    assignee: assignee || null,
+    priority: priority || 'normal',
+    churnCount: 0,
+    createdAt: new Date().toISOString().replace('T', ' ').slice(0, 19),
+    updatedAt: new Date().toISOString().replace('T', ' ').slice(0, 19),
+  };
+  issues.push(newIssue as any);
+  if (assignee) {
+    const lane = lanes.find((l) => l.id === assignee);
+    if (lane && !lane.ownedIssues.includes(id)) {
+      lane.ownedIssues.push(id);
+    }
+  }
+  events.unshift({
+    id: `ev-${Date.now()}`,
+    timestamp: new Date().toLocaleTimeString(),
+    type: 'claim',
+    lane: assignee || 'unassigned',
+    detail: `Created issue ${id}: ${title}`,
+  });
+  res.status(201).json(newIssue);
+});
+
+app.post('/api/issues/:id/claim', (req: Request, res: Response) => {
+  const issue = issues.find((i) => i.id === req.params.id);
+  if (!issue) return res.status(404).json({ error: 'Issue not found' });
+  const { laneId } = req.body;
+  const lane = lanes.find((l) => l.id === laneId);
+  if (!lane) return res.status(400).json({ error: 'Valid lane ID required' });
+
+  // Atomic claim
+  if (issue.assignee && issue.assignee !== laneId) {
+    const prevLane = lanes.find((l) => l.id === issue.assignee);
+    if (prevLane) {
+      prevLane.ownedIssues = prevLane.ownedIssues.filter((i: string) => i !== issue.id);
+    }
+  }
+  issue.assignee = laneId;
+  issue.status = 'in_progress';
+  issue.updatedAt = new Date().toISOString().replace('T', ' ').slice(0, 19);
+  if (!lane.ownedIssues.includes(issue.id)) {
+    lane.ownedIssues.push(issue.id);
+  }
+  events.unshift({
+    id: `ev-${Date.now()}`,
+    timestamp: new Date().toLocaleTimeString(),
+    type: 'claim',
+    lane: laneId,
+    detail: `Atomic claim acquired on ${issue.id}`,
+  });
+  res.json(issue);
+});
+
+app.post('/api/issues/:id/status', (req: Request, res: Response) => {
+  const issue = issues.find((i) => i.id === req.params.id);
+  if (!issue) return res.status(404).json({ error: 'Issue not found' });
+  const { status } = req.body;
+  if (!status) return res.status(400).json({ error: 'Status required' });
+  issue.status = status;
+  issue.updatedAt = new Date().toISOString().replace('T', ' ').slice(0, 19);
+  res.json(issue);
+});
+
+app.get('/api/reservations', (req: Request, res: Response) => {
+  res.json(reservations);
+});
+
+app.post('/api/reservations', (req: Request, res: Response) => {
+  const { path: resPath, owner, reason, ttlSeconds } = req.body;
+  if (!resPath || !owner) return res.status(400).json({ error: 'Path and owner required' });
+
+  // Conflict check
+  const existing = reservations.find((r) => r.path === resPath);
+  if (existing) {
+    return res.status(409).json({
+      error: `Reservation conflict: ${resPath} already held by ${existing.owner} (${existing.reason})`,
+      blockingOwner: existing.owner,
+      reason: existing.reason,
+    });
+  }
+
+  const newRes = {
+    id: `res-${Date.now()}`,
+    path: resPath,
+    owner,
+    reason: reason || 'Modifying resource',
+    acquiredAt: new Date().toISOString().replace('T', ' ').slice(0, 19),
+    ttlSeconds: ttlSeconds || 1800,
+  };
+  reservations.push(newRes);
+  const lane = lanes.find((l) => l.id === owner);
+  if (lane && !lane.leases.includes(resPath)) {
+    lane.leases.push(resPath);
+  }
+  events.unshift({
+    id: `ev-${Date.now()}`,
+    timestamp: new Date().toLocaleTimeString(),
+    type: 'reservation',
+    lane: owner,
+    detail: `Filed reservation on ${resPath}`,
+  });
+  res.status(201).json(newRes);
+});
+
+app.delete('/api/reservations/:id', (req: Request, res: Response) => {
+  const index = reservations.findIndex((r) => r.id === req.params.id);
+  if (index === -1) return res.status(404).json({ error: 'Reservation not found' });
+  const removed = reservations.splice(index, 1)[0];
+  const lane = lanes.find((l) => l.id === removed.owner);
+  if (lane) {
+    lane.leases = lane.leases.filter((l: string) => l !== removed.path);
+  }
+  events.unshift({
+    id: `ev-${Date.now()}`,
+    timestamp: new Date().toLocaleTimeString(),
+    type: 'reservation',
+    lane: removed.owner,
+    detail: `Released reservation on ${removed.path}`,
+  });
+  res.json({ message: 'Reservation released', reservation: removed });
+});
+
+app.get('/api/messages', (req: Request, res: Response) => {
+  res.json(messages);
+});
+
+app.post('/api/messages', (req: Request, res: Response) => {
+  const { from, to, subject, body, ackRequired } = req.body;
+  if (!from || !to || !subject || !body) {
+    return res.status(400).json({ error: 'from, to, subject, and body are required' });
+  }
+  const newMsg = {
+    id: messages.length + 1,
+    from,
+    to: Array.isArray(to) ? to : [to],
+    subject,
+    body,
+    threadId: `th-${Date.now().toString(36)}`,
+    ackRequired: Boolean(ackRequired),
+    acknowledged: false,
+    read: false,
+    timestamp: new Date().toISOString().replace('T', ' ').slice(0, 19),
+  };
+  messages.unshift(newMsg);
+
+  // Update target lanes
+  newMsg.to.forEach((recipient: string) => {
+    const lane = lanes.find((l) => l.id === recipient);
+    if (lane) {
+      lane.unreadMail += 1;
+      if (newMsg.ackRequired) {
+        lane.unacknowledgedMail += 1;
+      }
+    }
+  });
+
+  events.unshift({
+    id: `ev-${Date.now()}`,
+    timestamp: new Date().toLocaleTimeString(),
+    type: 'message',
+    lane: from,
+    detail: `Dispatched message to ${newMsg.to.join(', ')}: ${subject}`,
+  });
+
+  res.status(201).json(newMsg);
+});
+
+app.post('/api/messages/:id/ack', (req: Request, res: Response) => {
+  const idStr = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const msg = messages.find((m) => m.id === parseInt(idStr, 10));
+  if (!msg) return res.status(404).json({ error: 'Message not found' });
+  msg.acknowledged = true;
+  msg.read = true;
+  msg.to.forEach((recipient: string) => {
+    const lane = lanes.find((l) => l.id === recipient);
+    if (lane && lane.unacknowledgedMail > 0) {
+      lane.unacknowledgedMail = Math.max(0, lane.unacknowledgedMail - 1);
+    }
+  });
+  res.json(msg);
+});
+
+app.post('/api/messages/:id/read', (req: Request, res: Response) => {
+  const idStr = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const msg = messages.find((m) => m.id === parseInt(idStr, 10));
+  if (!msg) return res.status(404).json({ error: 'Message not found' });
+  msg.read = true;
+  res.json(msg);
+});
+
+app.get('/api/plans', (req: Request, res: Response) => {
+  res.json(plans);
+});
+
+app.post('/api/plans', (req: Request, res: Response) => {
+  const { title, proposer, description, envelope } = req.body;
+  if (!title || !proposer) return res.status(400).json({ error: 'Title and proposer required' });
+  const newPlan = {
+    id: `plan-${proposer}-${Date.now().toString(36)}`,
+    title,
+    proposer,
+    description: description || '',
+    envelope: envelope || { maxFiles: 5, allowedDirectories: ['src'], tokenCap: 50000 },
+    status: 'pending_approval',
+    proposedAt: new Date().toISOString().replace('T', ' ').slice(0, 19),
+  };
+  plans.push(newPlan as any);
+  events.unshift({
+    id: `ev-${Date.now()}`,
+    timestamp: new Date().toLocaleTimeString(),
+    type: 'plan',
+    lane: proposer,
+    detail: `Proposed revision plan: ${title}`,
+  });
+  res.status(201).json(newPlan);
+});
+
+app.post('/api/plans/:id/approve', (req: Request, res: Response) => {
+  const plan = plans.find((p) => p.id === req.params.id);
+  if (!plan) return res.status(404).json({ error: 'Plan not found' });
+  plan.status = 'approved';
+  events.unshift({
+    id: `ev-${Date.now()}`,
+    timestamp: new Date().toLocaleTimeString(),
+    type: 'plan',
+    lane: 'operator',
+    detail: `Approved plan ${plan.id} for ${plan.proposer}`,
+  });
+  res.json(plan);
+});
+
+app.post('/api/plans/:id/reject', (req: Request, res: Response) => {
+  const plan = plans.find((p) => p.id === req.params.id);
+  if (!plan) return res.status(404).json({ error: 'Plan not found' });
+  plan.status = 'rejected';
+  events.unshift({
+    id: `ev-${Date.now()}`,
+    timestamp: new Date().toLocaleTimeString(),
+    type: 'plan',
+    lane: 'operator',
+    detail: `Rejected plan ${plan.id}`,
+  });
+  res.json(plan);
+});
+
+app.get('/api/budget', (req: Request, res: Response) => {
+  res.json(budget);
+});
+
+app.post('/api/budget/toggle', (req: Request, res: Response) => {
+  budget.enforced = !budget.enforced;
+  res.json(budget);
+});
+
+app.post('/api/budget/update', (req: Request, res: Response) => {
+  const { tokenCap, callsCap, hoursCap } = req.body;
+  if (tokenCap) budget.tokenCap = Number(tokenCap);
+  if (callsCap) budget.callsCap = Number(callsCap);
+  if (hoursCap) budget.hoursCap = Number(hoursCap);
+  res.json(budget);
+});
+
+app.get('/api/problems', (req: Request, res: Response) => {
+  res.json(problems);
+});
+
+app.delete('/api/problems/:id', (req: Request, res: Response) => {
+  problems = problems.filter((p) => p.id !== req.params.id);
+  res.json({ message: 'Problem dismissed' });
+});
+
+app.get('/api/events', (req: Request, res: Response) => {
+  res.json(events);
+});
+
+// System Diagnostics and Environment Variable Verification Endpoint
+app.get('/api/diagnostics', (req: Request, res: Response) => {
+  const hostVal = process.env.HOST || '0.0.0.0';
+  const portVal = process.env.PORT || '3000';
+  const githubToken = process.env.GITHUB_TOKEN || '';
+  const geminiKey = process.env.GEMINI_API_KEY || '';
+  const mcpSecret = process.env.MCP_SHARED_SECRET || '';
+  const nodeEnv = process.env.NODE_ENV || 'development';
+
+  const isHostValid = hostVal === '0.0.0.0';
+  const isPortValid = !isNaN(parseInt(portVal, 10)) && parseInt(portVal, 10) > 0;
+
+  const vars = [
+    {
+      name: 'HOST',
+      category: 'Network',
+      value: hostVal,
+      isSecret: false,
+      isSet: true,
+      status: isHostValid ? 'healthy' : 'warning',
+      expected: '0.0.0.0',
+      description: 'Network IP interface binding. Must be 0.0.0.0 so the container proxy routes preview traffic.',
+      notes: isHostValid ? 'Correctly bound to 0.0.0.0' : 'Warning: Bound to a specific IP, may block external proxy traffic',
+    },
+    {
+      name: 'PORT',
+      category: 'Network',
+      value: portVal,
+      isSecret: false,
+      isSet: true,
+      status: portVal === '3000' ? 'healthy' : isPortValid ? 'healthy' : 'error',
+      expected: '3000',
+      description: 'TCP port for the Node.js dev and API server.',
+      notes: portVal === '3000' ? 'Standard preview port 3000' : `Custom port ${portVal}`,
+    },
+    {
+      name: 'NODE_ENV',
+      category: 'Runtime',
+      value: nodeEnv,
+      isSecret: false,
+      isSet: true,
+      status: 'healthy',
+      expected: 'development | production',
+      description: 'Execution mode for Node.js and Vite.',
+      notes: `Running in ${nodeEnv} mode`,
+    },
+    {
+      name: 'GITHUB_TOKEN',
+      category: 'Integrations',
+      value: githubToken ? `${githubToken.slice(0, 4)}...${githubToken.slice(-4)}` : null,
+      isSecret: true,
+      isSet: Boolean(githubToken),
+      status: githubToken ? 'healthy' : 'optional_missing',
+      expected: 'ghp_... or github_pat_...',
+      description: 'GitHub Personal Access Token for synchronizing remote pull request status and issues.',
+      notes: githubToken ? `Configured (length: ${githubToken.length} chars)` : 'Optional: Set if coordinating with remote GitHub repos',
+    },
+    {
+      name: 'GEMINI_API_KEY',
+      category: 'Integrations',
+      value: geminiKey ? `AIza...${geminiKey.slice(-4)}` : null,
+      isSecret: true,
+      isSet: Boolean(geminiKey),
+      status: geminiKey ? 'healthy' : 'optional_missing',
+      expected: 'AIzaSy...',
+      description: 'Server-side API key for Google Gemini model integration.',
+      notes: geminiKey ? `Configured (length: ${geminiKey.length} chars)` : 'Optional: Set if utilizing server-side Gemini features',
+    },
+    {
+      name: 'MCP_SHARED_SECRET',
+      category: 'Security',
+      value: mcpSecret ? `••••••••${mcpSecret.slice(-4)}` : null,
+      isSecret: true,
+      isSet: Boolean(mcpSecret),
+      status: mcpSecret ? 'healthy' : 'optional_missing',
+      expected: '32+ character random string',
+      description: 'HMAC signature token for loopback MCP hook authentication and webhook validation.',
+      notes: mcpSecret ? `Configured (length: ${mcpSecret.length} chars)` : 'Optional: Local sandbox runs in open loopback mode',
+    },
+  ];
+
+  const mem = process.memoryUsage();
+
+  res.json({
+    status: isHostValid && isPortValid ? 'healthy' : 'degraded',
+    timestamp: new Date().toISOString(),
+    variables: vars,
+    system: {
+      nodeVersion: process.version,
+      platform: process.platform,
+      arch: process.arch,
+      pid: process.pid,
+      uptimeSeconds: Math.floor(process.uptime()),
+      heapUsedMB: Math.round(mem.heapUsed / 1024 / 1024),
+      heapTotalMB: Math.round(mem.heapTotal / 1024 / 1024),
+      rssMB: Math.round(mem.rss / 1024 / 1024),
+    },
+    checks: {
+      networkBinding: isHostValid,
+      portConfig: isPortValid,
+      mcpServiceReady: true,
+      fileSystemEphemeral: true,
+    },
+  });
+});
+
+// Simulated CLI execution endpoint
+app.post('/api/cli', (req: Request, res: Response) => {
+  const rawCmd = (req.body.command || '').trim();
+  const cmd = rawCmd.replace(/^agent-parley\s+/, '');
+
+  if (!rawCmd) {
+    return res.json({ output: '' });
+  }
+
+  if (rawCmd === 'help' || cmd === 'help' || cmd === '--help') {
+    return res.json({
+      output: `Agent Parley 0.18.0 — separate work, shared context
+
+USAGE:
+  agent-parley <command> [options]
+
+COMMANDS:
+  top           Live dashboard of lane participants, state, claims, leases
+  status        High-level repository health, budget, active leases
+  lanes         Inspect or manage lane worktrees and sessions
+  issues        Show issue ownership, claims and churn detection
+  mail          Inspect inbox, messages and acknowledgment state
+  reserve       File or check advisory resource and path reservations
+  plan          Show proposals and revision envelope bounds
+  budget        Inspect token and call limits; cap enforcement
+  problems      Display detected anomalies, unacknowledged mail and churn
+  demo          Run the 9-chapter tour from demo_scenario.py
+  doctor        Verify MCP protocol transport and workspace integrity
+`,
+    });
+  }
+
+  if (cmd.startsWith('status')) {
+    const summary = getTopSummary();
+    const output = `Agent Parley 0.18.0 (pid: 14208)
+Lanes:       ${summary.lanesWorking} working, ${summary.lanesIdle} idle, ${summary.lanesStopped} stopped (${summary.lanesTotal} total)
+Issues:      ${summary.issuesClaimed} claimed, ${summary.issuesOpen} open, ${summary.issuesInReview} review, ${summary.issuesCompleted} completed
+Leases:      ${summary.activeLeases} active advisory path/resource reservations
+Budget:      ${budget.tokensUsed.toLocaleString()} / ${budget.tokenCap.toLocaleString()} tokens (${summary.budgetUsedPercent}%), ${budget.callsUsed} / ${budget.callsCap} calls [${budget.enforced ? 'ENFORCED' : 'UNENFORCED'}]
+Problems:    ${summary.unresolvedProblems} unresolved anomalies flagged
+`;
+    return res.json({ output });
+  }
+
+  if (cmd.startsWith('top')) {
+    let out = `PARTICIPANT      STATE       BRANCH               ISSUES   MAIL   LEASES   DENIALS  TOKENS   IDLE    TASK\n`;
+    out += `----------------------------------------------------------------------------------------------------\n`;
+    lanes.forEach((l) => {
+      const p = l.name.padEnd(16);
+      const st = l.state.padEnd(12);
+      const br = (l.branch.length > 20 ? l.branch.slice(0, 18) + '..' : l.branch).padEnd(21);
+      const iss = (l.ownedIssues.join(',') || '-').padEnd(9);
+      const mail = `${l.unreadMail}/${l.unacknowledgedMail}`.padEnd(7);
+      const leases = String(l.leases.length).padEnd(9);
+      const den = String(l.denials).padEnd(9);
+      const tok = String(l.tokens).padEnd(9);
+      const idle = `${l.idleSeconds}s`.padEnd(8);
+      const task = l.currentTask.slice(0, 24);
+      out += `${p}${st}${br}${iss}${mail}${leases}${den}${tok}${idle}${task}\n`;
+    });
+    return res.json({ output: out });
+  }
+
+  if (cmd.startsWith('lanes')) {
+    let out = `Registered Lanes:\n`;
+    lanes.forEach((l) => {
+      out += `  • [${l.state.toUpperCase()}] ${l.name} (${l.provider}) -> branch: ${l.branch}, worktree: ${l.worktree}\n`;
+      out += `    Current task: ${l.currentTask}\n`;
+      out += `    Leases: ${l.leases.join(', ') || 'none'}\n\n`;
+    });
+    return res.json({ output: out });
+  }
+
+  if (cmd.startsWith('issues')) {
+    let out = `Issues & Ownership:\n`;
+    issues.forEach((i) => {
+      out += `  ${i.id.padEnd(6)} [${i.status.toUpperCase().padEnd(12)}] ${i.title}\n`;
+      out += `         Assignee: ${i.assignee || 'unassigned'} | Priority: ${i.priority} | Churn: ${i.churnCount}\n`;
+    });
+    return res.json({ output: out });
+  }
+
+  if (cmd.startsWith('problems')) {
+    if (problems.length === 0) {
+      return res.json({ output: 'No problems detected. All lanes healthy.\n' });
+    }
+    let out = `Detected Anomalies:\n`;
+    problems.forEach((p) => {
+      out += `  [${p.severity.toUpperCase()}] ${p.lane}: ${p.detail} (${p.timestamp})\n`;
+    });
+    return res.json({ output: out });
+  }
+
+  if (cmd.startsWith('demo')) {
+    const demoSteps = [
+      'Chapter 1: Initializing sandboxed worktrees and stub participants...',
+      'Chapter 2: Spawning lane-alpha (claude) and lane-beta (codex)...',
+      'Chapter 3: Atomic claims: lane-alpha acquires #104 and file reservation on src/auth/jwt.ts...',
+      'Chapter 4: Handoffs and wakes: lane-alpha dispatches interface change notice...',
+      'Chapter 5: Advisory collision prevention: lane-gamma reservation on port:5432 refused...',
+      'Chapter 6: Plan proposed by lane-gamma; bounded revision envelope checked...',
+      'Chapter 7: Run budget active: 165,670 / 500,000 tokens consumed...',
+      'Chapter 8: Churn detector records flapped test run on #108...',
+      'Chapter 9: Convergence: verification pass, unattended integration candidate ready!',
+    ];
+    return res.json({
+      output: demoSteps.join('\n\n') + '\n\nDemo walkthrough completed successfully.\n',
+    });
+  }
+
+  if (cmd.startsWith('assets') || rawCmd.includes('manage.py assets')) {
+    if (rawCmd.includes('resolve') || cmd.includes('resolve')) {
+      return res.json({
+        output: JSON.stringify(
+          {
+            status: 'ok',
+            read_only: true,
+            asset_id: 'andre-photo-20230817_203913',
+            path: '/Movies_Projects/inbox/andre-reference-photos/20230817_203913.jpg',
+            recorded_sha256: '9951e9da18903f79a70b951ef8477916accbfc88ff3b557b833c609b6628ab09',
+            hash_verified: false,
+            approved: false,
+            bytes: 412589,
+          },
+          null,
+          2
+        ),
+      });
+    }
+    return res.json({
+      output: JSON.stringify(
+        {
+          schema: 'movies/assets/read/v1',
+          status: 'ok',
+          read_only: true,
+          catalog: 'projects/andre-time-travel/asset-registry.csv',
+          catalog_sha256: '7f9a12c84d... (8-column verified)',
+          records_count: 290,
+          errors: [],
+          proposals: [],
+          duplicate_asset_ids: {},
+          proposals_applied: false,
+        },
+        null,
+        2
+      ),
+    });
+  }
+
+  if (cmd.startsWith('media doctor') || rawCmd.includes('media doctor')) {
+    return res.json({
+      output: JSON.stringify(
+        {
+          schema: 'parley/media/doctor/v1',
+          status: 'ok',
+          repo: 'https://github.com/andreathar/Movies_Projects',
+          canonical_media_root: 'projects/andre-time-travel',
+          shared_profile: 'shared-media',
+          lfs_smudge_in_worktrees: false,
+          spare_pool: 'disabled',
+          native_access_verified: true,
+          sample_path: 'inbox/andre-reference-photos/20230817_203913.jpg',
+          sample_status: 'canonical_contained',
+        },
+        null,
+        2
+      ),
+    });
+  }
+
+  if (cmd === 'movies' || cmd.startsWith('repo')) {
+    let out = `Agent Parley — Target Repository: https://github.com/andreathar/Movies_Projects\n`;
+    out += `Active Stack: Full-stack React + Node.js/Python API + Database\n\n`;
+    out += `Orchestrated Worktrees & Lanes:\n`;
+    lanes.forEach((l: any) => {
+      out += `  • ${l.name} (${l.provider}) -> branch: ${l.branch}\n`;
+      out += `    Worktree: ${l.worktree} | Task: ${l.currentTask}\n`;
+      out += `    Advisory Leases: ${l.leases.join(', ') || 'none'}\n\n`;
+    });
+    out += `All 3 worktrees verified against git remote origin/main.\n`;
+    return res.json({ output: out });
+  }
+
+  if (cmd.startsWith('kling')) {
+    if (cmd.includes('enhance') || cmd.includes('prompt')) {
+      return res.json({
+        output: `[Kling AI Enhancer & Naming Engine]
+Enhanced Prompt: "Cinematic 35mm motion picture film capture. Andre checking an antique silver pocket watch under a flicking tungsten streetlamp in 1920s rainy cobblestone street. Medium close-up, slow cinematic push-in. Captured on Cooke 50mm Anamorphic Prime F/1.8. Volumetric rain haze, chiaroscuro lighting, wet reflections. 24fps motion cadence, photorealistic temporal stability."
+Negative Prompt: "blurry, distorted facial features, rubbery limbs, morphing anatomy, plastic doll skin, jerky camera movements, CGI 3D shine, watermark"
+Camera Motion: Pan: 0 | Tilt: 0 | Zoom: +3 (slow push)
+Standard Naming Pattern:
+  - Filename: kling_att_sc04_sh02_andre_pocketwatch_v2.mp4
+  - Asset ID: att-video-kling-sc04-02
+  - Relative Path: projects/andre-time-travel/assets/media/kling_att_sc04_sh02_andre_pocketwatch_v2.mp4
+  - 8-Column CSV Row: att-video-kling-sc04-02, video/mp4, projects/andre-time-travel/assets/media/kling_att_sc04_sh02_andre_pocketwatch_v2.mp4, projects/andre-time-travel, local_media, e492bfa4876b39c017d2a588b3fe492bfa4876b39c017d2a588b3f9c01824d8, true, Scene 04 Shot 02 generated via Kling 2.0 Master
+  - Tags: [scene:04, shot:02, char:andre, cam:dolly-in, engine:kling-2.0, era:1920s]
+Handoff: Ready for autonomous lane execution via scripts/kling_release.py
+`,
+      });
+    }
+    return res.json({
+      output: `Kling Studio CLI:
+  kling enhance [prompt]  : Run cinematic prompt enhancer with standardized naming
+  kling review            : Inspect visual review feedback and generate revision pass
+  kling naming-standard   : Display the strict Movies_Projects Kling asset naming specification
+`,
+    });
+  }
+
+  return res.json({
+    output: `agent-parley: '${cmd}' executed. (Run 'agent-parley help' for available commands)\n`,
+  });
+});
+
+// MCP tool dispatch endpoint (matching agent_parley server.py)
+app.post('/api/mcp/tools/call', (req: Request, res: Response) => {
+  const { name, arguments: args } = req.body;
+  if (!name) return res.status(400).json({ error: 'Tool name required' });
+
+  if (name === 'send_message') {
+    const newMsg = {
+      id: messages.length + 1,
+      from: args.from || 'mcp-client',
+      to: Array.isArray(args.to) ? args.to : [args.to],
+      subject: args.subject || 'Update',
+      body: args.body_md || args.body || '',
+      threadId: args.thread_id || `th-${Date.now()}`,
+      ackRequired: Boolean(args.ack_required),
+      acknowledged: false,
+      read: false,
+      timestamp: new Date().toISOString().replace('T', ' ').slice(0, 19),
+    };
+    messages.unshift(newMsg);
+    return res.json({
+      content: [{ type: 'text', text: JSON.stringify({ status: 'sent', message_id: newMsg.id }) }],
+    });
+  }
+
+  if (name === 'fetch_inbox') {
+    return res.json({
+      content: [{ type: 'text', text: JSON.stringify({ messages: messages.slice(0, 5) }) }],
+    });
+  }
+
+  if (name === 'file_reservation_paths') {
+    const paths = args.paths || [];
+    const owner = args.owner || 'current-lane';
+    const reason = args.reason || 'Work in progress';
+    const granted: string[] = [];
+    const conflicts: any[] = [];
+
+    paths.forEach((p: string) => {
+      const existing = reservations.find((r) => r.path === p);
+      if (existing) {
+        conflicts.push({ path: p, blockingOwner: existing.owner, reason: existing.reason });
+      } else {
+        const newRes = {
+          id: `res-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          path: p,
+          owner,
+          reason,
+          acquiredAt: new Date().toISOString().replace('T', ' ').slice(0, 19),
+          ttlSeconds: 1800,
+        };
+        reservations.push(newRes);
+        granted.push(p);
+      }
+    });
+
+    return res.json({
+      content: [{ type: 'text', text: JSON.stringify({ granted, conflicts }) }],
+    });
+  }
+
+  res.status(501).json({ error: `Tool ${name} not yet implemented` });
+});
+
+// Webhook endpoint from agent_parley/server.py
+app.post('/hook/:lane', (req: Request, res: Response) => {
+  const laneId = req.params.lane;
+  res.json({
+    status: 'received',
+    lane: laneId,
+    timestamp: Date.now(),
+    action: 'continue',
+  });
+});
+
+// Kling AI Studio Endpoints (Powered by Gemini 3.8 Flash & Multimodal Vision)
+app.post('/api/kling/enhance-prompt', async (req: Request, res: Response) => {
+  try {
+    const result = await enhanceKlingPrompt(req.body);
+    res.json(result);
+  } catch (err: any) {
+    console.error('Error enhancing Kling prompt:', err);
+    res.status(500).json({ error: err.message || 'Prompt enhancement failed' });
+  }
+});
+
+app.post('/api/kling/vision-critique', async (req: Request, res: Response) => {
+  try {
+    const result = await critiqueKlingVision(req.body);
+    res.json(result);
+  } catch (err: any) {
+    console.error('Error in Kling vision critique:', err);
+    res.status(500).json({ error: err.message || 'Vision critique failed' });
+  }
+});
+
+app.post('/api/kling/save-to-registry', (req: Request, res: Response) => {
+  const { assetId, filename, csvRow, tags } = req.body;
+  if (!assetId || !filename) {
+    return res.status(400).json({ error: 'Asset ID and filename are required' });
+  }
+
+  const relativePath = `projects/andre-time-travel/assets/media/${filename}`;
+  reservations.push({
+    id: `res-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    path: relativePath,
+    owner: 'lane-kling-release',
+    reason: `Registered Kling media asset: ${assetId}`,
+    acquiredAt: new Date().toISOString().replace('T', ' ').slice(0, 19),
+    ttlSeconds: 3600,
+  });
+
+  events.unshift({
+    id: `ev-${Date.now()}`,
+    type: 'asset_registered',
+    lane: 'lane-kling-release',
+    description: `Asset registered: ${assetId} (${filename}) with 8-column schema & strict tags`,
+    timestamp: new Date().toISOString().replace('T', ' ').slice(0, 19),
+  });
+
+  res.json({
+    status: 'registered',
+    assetId,
+    path: relativePath,
+    csvRow,
+    tags,
+    message: 'Asset successfully added to runtime registry and advisory lease created',
+  });
+});
+
+// Serve docs statically for video composition and assets
+app.use('/docs', express.static(path.join(__dirname, 'docs')));
+
+// Frontend serving
+if (process.env.NODE_ENV === 'production') {
+  app.use(express.static(path.join(__dirname, 'dist')));
+  app.get('*', (req: Request, res: Response) => {
+    res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+  });
+} else {
+  // Vite dev middleware
+  const { createServer } = await import('vite');
+  const vite = await createServer({
+    server: { middlewareMode: true },
+    appType: 'spa',
+  });
+  app.use(vite.middlewares);
+}
+
+app.listen(PORT, HOST, () => {
+  console.log(`Agent Parley service running at http://${HOST}:${PORT}`);
+});

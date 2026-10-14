@@ -1,0 +1,22 @@
+{
+  "name": "agent-parley",
+  "displayName": "Agent Parley",
+  "version": "0.18.0",
+  "protocol": 1,
+  "description": "Run several coding agents side by side on one repository. Each participant works in its own Git worktree, claims numbered issues before editing, announces advisory file reservations to the others, and hands work over explicitly with a summary and evidence instead of overwriting a peer.",
+  "author": {
+    "name": "Suneel Kaushik S",
+    "email": "suneel944@gmail.com"
+  },
+  "homepage": "https://github.com/suneel944/agent-parley",
+  "repository": "https://github.com/suneel944/agent-parley",
+  "license": "MIT",
+  "keywords": [
+    "agents",
+    "coordination",
+    "git-worktree",
+    "claude-code",
+    "codex",
+    "mcp"
+  ]
+}

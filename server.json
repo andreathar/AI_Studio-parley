@@ -1,0 +1,12 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.suneel944/agent-parley",
+  "title": "Agent Parley",
+  "description": "Coordination server for parallel coding agents. Runs only inside a lane started by agent-parley run.",
+  "version": "0.18.0",
+  "websiteUrl": "https://suneel944.github.io/agent-parley/",
+  "repository": {
+    "url": "https://github.com/suneel944/agent-parley",
+    "source": "github"
+  }
+}

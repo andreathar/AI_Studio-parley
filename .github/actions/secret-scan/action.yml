@@ -1,0 +1,18 @@
+name: Secret scan
+description: Scan Git history with a checksum-pinned Gitleaks binary.
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        SCANNER_SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+      run: |
+        set -euo pipefail
+        scanner_dir=$(mktemp -d)
+        trap 'rm -rf "$scanner_dir"' EXIT
+        curl --fail --silent --show-error --location --max-time 60 \
+          https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz \
+          --output "$scanner_dir/scanner.tar.gz"
+        echo "$SCANNER_SHA256  $scanner_dir/scanner.tar.gz" | sha256sum --check
+        tar -xzf "$scanner_dir/scanner.tar.gz" -C "$scanner_dir" gitleaks
+        "$scanner_dir/gitleaks" git --redact --log-opts=--all

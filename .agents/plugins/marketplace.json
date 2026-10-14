@@ -1,0 +1,20 @@
+{
+  "name": "agent-parley",
+  "interface": {
+    "displayName": "Agent Parley"
+  },
+  "plugins": [
+    {
+      "name": "agent-parley",
+      "source": {
+        "source": "local",
+        "path": "./plugins/agent-parley"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

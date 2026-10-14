@@ -1,0 +1,24 @@
+title: "setup: "
+body:
+  - type: markdown
+    attributes:
+      value: "Show a setup that worked: parallel lanes, a rescue, a handoff between providers, or a workflow built on Agent Parley. Never post credentials, private messages or the state directory."
+  - type: textarea
+    id: setup
+    attributes:
+      label: Setup
+      description: Lanes, providers, repository shape, and the Agent Parley version.
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: What the lanes did
+      description: The work, how claims, messages or handoffs moved it, and where coordination helped or got in the way.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence
+      description: Optional redacted `agent-parley top` output, a recording, or a link to the resulting pull requests.

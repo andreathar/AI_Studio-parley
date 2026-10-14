@@ -1,0 +1,21 @@
+name: Feature request
+description: Propose a focused improvement.
+title: "feature: "
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Proposed behavior and alternatives
+    validations:
+      required: true
+  - type: textarea
+    id: boundaries
+    attributes:
+      label: Boundaries and acceptance criteria
+      description: Consider permissions, state compatibility, and context cost.

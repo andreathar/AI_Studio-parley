@@ -1,0 +1,36 @@
+name: PR hygiene
+
+on:
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: Pull request to validate
+        required: true
+        type: string
+  pull_request:
+    types: [opened, reopened, synchronize, edited, labeled, unlabeled,
+            assigned, unassigned, milestoned, demilestoned, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: read
+  issues: read
+
+concurrency:
+  group: pr-hygiene-${{ github.event.pull_request.number || inputs.pr_number }}
+  cancel-in-progress: false
+
+jobs:
+  pr-hygiene:
+    if: github.event.pull_request.merged != true
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Validate live PR metadata with read-only permissions
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
+        run: python3 -m scripts.check_pr_hygiene

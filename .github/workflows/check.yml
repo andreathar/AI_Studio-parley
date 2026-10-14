@@ -1,0 +1,189 @@
+name: Check
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: >-
+    check-${{ github.workflow }}-${{ github.ref == 'refs/heads/main'
+    && github.sha || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      pythons: ${{ steps.scope.outputs.pythons }}
+      macos: ${{ steps.scope.outputs.macos }}
+      wsl: ${{ steps.scope.outputs.wsl }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+      - id: scope
+        name: Choose the legs this change needs
+        env:
+          BASE_SHA: >-
+            ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: python3 -m scripts.ci_scope
+  check:
+    needs: [changes, python, macos, install]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every needed Python check
+        env:
+          CHANGES: ${{ needs.changes.result }}
+          PYTHON: ${{ needs.python.result }}
+          MACOS: ${{ needs.macos.result }}
+          INSTALL: ${{ needs.install.result }}
+          MACOS_NEEDED: ${{ needs.changes.outputs.macos }}
+        run: |
+          test "$CHANGES" = success
+          test "$PYTHON" = success
+          if [ "$MACOS_NEEDED" = false ]; then
+            test "$MACOS" = skipped
+            test "$INSTALL" = skipped
+          else
+            test "$MACOS" = success
+            test "$INSTALL" = success
+          fi
+  python:
+    needs: changes
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ${{ fromJSON(needs.changes.outputs.pythons) }}
+        os: [ubuntu-latest]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7
+        with:
+          python-version: ${{ matrix.python }}
+      - run: make check
+  macos:
+    name: python (3.12, macos-latest)
+    needs: changes
+    if: needs.changes.outputs.macos == 'true'
+    runs-on: macos-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7
+        with:
+          python-version: '3.12'
+      - run: make check
+  install:
+    name: install (${{ matrix.os }})
+    needs: changes
+    if: needs.changes.outputs.macos == 'true'
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7
+        with:
+          python-version: '3.12'
+      - name: Build the wheel under test
+        run: uv build --no-sources --wheel --out-dir "$RUNNER_TEMP/dist"
+      - name: Run install.sh twice in a clean home without uv
+        run: |
+          set -eu
+          system=/usr/bin:/bin:/usr/sbin:/sbin
+          root="$RUNNER_TEMP/clean"
+          mkdir -p "$root/home"
+          wheel=$(ls "$RUNNER_TEMP"/dist/agent_parley-*.whl)
+          version=$(sed -n 's/^version = "\(.*\)"$/\1/p' pyproject.toml)
+          next="No CLI yet? Try: agent-parley demo"
+          clean() {
+            status=0
+            env -i HOME="$root/home" PATH="$1" \
+              AGENT_PARLEY_SPEC="$wheel" sh scripts/install.sh \
+              > "$root/$2.log" 2>&1 || status=$?
+            cat "$root/$2.log"
+            return "$status"
+          }
+          if PATH="$system" command -v uv; then
+            echo "uv is already on the system PATH" >&2
+            exit 1
+          fi
+          clean "$system" first
+          grep -q '^Installing uv from ' "$root/first.log"
+          test "$(tail -n 1 "$root/first.log")" = "$next"
+          added=$(sed -n 's/^  export PATH="\(.*\):\$PATH"$/\1/p' \
+            "$root/first.log" | tr '\n' ':')
+          test -n "$added"
+          full="$added$system"
+          installed=$(env -i HOME="$root/home" PATH="$full" \
+            agent-parley --version)
+          echo "$installed"
+          test -n "$version"
+          test "$installed" = "$version"
+          clean "$full" second
+          if grep -q -e '^Installing uv from ' -e 'export PATH=' \
+            "$root/second.log"; then
+            echo "the second run bootstrapped uv or asked for PATH" >&2
+            exit 1
+          fi
+          test "$(tail -n 1 "$root/second.log")" = "$next"
+  wsl:
+    needs: changes
+    if: needs.changes.outputs.wsl == 'true'
+    runs-on: windows-latest
+    timeout-minutes: 65
+    steps:
+      - run: git config --global core.autocrlf false
+        timeout-minutes: 2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        timeout-minutes: 5
+        with:
+          fetch-depth: 0
+      - id: setup
+        name: Set up WSL
+        uses: Vampire/setup-wsl@d1da7f2c0322a5ee4f24975344f67fc0f5baf364
+        continue-on-error: true
+        timeout-minutes: 8
+        with:
+          distribution: Ubuntu-24.04
+          additional-packages: git python3 curl ca-certificates
+      - name: Set up WSL again after a failed or hung first attempt
+        if: steps.setup.outcome != 'success'
+        uses: Vampire/setup-wsl@d1da7f2c0322a5ee4f24975344f67fc0f5baf364
+        timeout-minutes: 8
+        with:
+          distribution: Ubuntu-24.04
+          additional-packages: git python3 curl ca-certificates
+      - name: Run the behaviour suite inside the Linux file system
+        shell: wsl-bash {0}
+        timeout-minutes: 40
+        run: |
+          set -eu
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          export PATH="$HOME/.local/bin:$PATH"
+          cp -r "$PWD" "$HOME/checkout"
+          cd "$HOME/checkout"
+          uv python install 3.12
+          uv sync --locked
+          uv build --no-sources
+          uv run --locked pytest -q -n auto
+  secrets:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/secret-scan

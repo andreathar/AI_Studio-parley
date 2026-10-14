@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Question
+    url: https://github.com/suneel944/agent-parley/discussions/categories/q-a
+    about: Ask about setup, lanes, providers or coordination in Discussions.
+  - name: Idea
+    url: https://github.com/suneel944/agent-parley/discussions/categories/ideas
+    about: Discuss an idea before it becomes a feature request.
+  - name: Security report
+    url: https://github.com/suneel944/agent-parley/security/advisories/new
+    about: Report vulnerabilities privately.

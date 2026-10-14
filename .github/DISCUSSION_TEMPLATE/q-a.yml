@@ -1,0 +1,33 @@
+title: "question: "
+labels: ["question"]
+body:
+  - type: markdown
+    attributes:
+      value: "Ask about installing, launching lanes, providers, claims or handoffs. Report a reproducible defect as a bug issue instead. Never post credentials, private messages or the state directory."
+  - type: input
+    id: version
+    attributes:
+      label: Version and environment
+      description: Output of `agent-parley --version`, operating system, Python, and native CLI versions such as `claude --version` and `codex --version`.
+    validations:
+      required: true
+  - type: textarea
+    id: setup
+    attributes:
+      label: Lanes and providers
+      description: How many lanes, which provider each lane runs, and whether they share one repository.
+    validations:
+      required: true
+  - type: textarea
+    id: question
+    attributes:
+      label: Question
+      description: What you are trying to do, what you ran, and what happened.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Redacted output
+      description: Relevant `agent-parley doctor`, `status` or `problems` output, with secrets removed.
+      render: text
