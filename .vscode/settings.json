@@ -1,4 +1,4 @@
 {
-  "cloudcode.duetAI.enable": true,
-  "cloudcode.geminiCodeAssist.enable": true
+  "cloudcode.geminiCodeAssist.enable": true,
+  "geminicodeassist.enable": true
 }

@@ -4,10 +4,11 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx server.ts",
+    "dev": "tsx server-entry.ts",
     "build": "vite build",
-    "start": "tsx server.ts",
-    "lint": "tsc --noEmit"
+    "start": "tsx server-entry.ts",
+    "lint": "tsc --noEmit",
+    "test:observer": "node --import tsx tests/movies-observer.test.mjs && node tests/online-movies.test.mjs && node --import tsx tests/observer-entry.test.mjs && python3 -B -m unittest discover -s tests -p test_movies_publish.py"
   },
   "dependencies": {
     "@google/genai": "^2.29.1",

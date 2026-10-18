@@ -1,5 +1,11 @@
 async function bootstrap() {
   const root = document.getElementById('root')!;
+  if(document.documentElement.dataset.moviesObserver==='1' || new URLSearchParams(window.location.search).has('movies-observer')) {
+    const {mountOnlineMoviesView}=await import('./online-movies-view.mjs');
+    await import('./local-movies.css');
+    mountOnlineMoviesView(root);
+    return;
+  }
   if (new URLSearchParams(window.location.search).has('movies-local')) {
     const { localOrigin, mountLocalMoviesView } = await import('./local-movies-view.mjs');
     if (!localOrigin(window.location)) {

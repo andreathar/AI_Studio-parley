@@ -3,6 +3,13 @@ import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
+function refuseObserverProfile(): void {
+  if (process.env.MOVIES_OBSERVER_ONLY === '1') {
+    throw new Error('Observer profile requires server-entry.ts');
+  }
+}
+refuseObserverProfile();
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -38,6 +45,7 @@ try {
 } catch (e) {
   // Ignore
 }
+refuseObserverProfile();
 
 import { enhanceKlingPrompt, critiqueKlingVision, getGeminiApiKey } from './src/server/klingAiService';
 
