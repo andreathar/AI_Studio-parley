@@ -1,0 +1,24 @@
+/** Browser proof stays inside this closure and is never rendered or persisted. */
+import {createWorkflowClient,renderWorkflow} from './workflow-view.mjs';
+export function mountSessionView(root,options){
+ let proof=null,client=null,pairingId=null,expiresAt=null,notice='Solicite pareamento e confirme o identificador no terminal humano.';
+ const endpoint=new URL(options.baseUrl,location.href);if(endpoint.origin!==location.origin||endpoint.pathname!==`/api/workflow/v1/cycles/${options.cycleId}`)throw Error('Fixed local cycle required');
+ const request=async(url,settings={})=>{const target=new URL(url,location.href);if(target.origin!==endpoint.origin||!(target.pathname===endpoint.pathname||target.pathname.startsWith(endpoint.pathname+'/')))throw Error('Session scope refused');return fetch(target,{...settings,cache:'no-store',headers:{...settings.headers,...(proof?{Authorization:'Bearer '+proof}:{})}});};
+ const refresh=async()=>{try{const r=await request(endpoint+'/session/status');if(!r.ok)throw Error();const status=await r.json();expiresAt=status.expiresAt;client??=createWorkflowClient({...options,fetch:request});await client.refresh();notice='Sessão producer-andre autorizada; somente tarefas locais.';}catch{if(client)client.state.stale=true;notice='Pareamento pendente, revogado ou expirado. Confirme no terminal e verifique novamente.';}draw();};
+ const command=async(type,data={})=>{try{await client.command(type,data);notice='Comando confirmado no SQLite.';}catch{notice='Comando recusado ou resposta incerta. Atualize a leitura antes de continuar.';}draw();};
+ const draw=()=>{
+  root.replaceChildren();const status=document.createElement('p');status.setAttribute('role','status');status.textContent=notice;root.append(status);
+  if(!proof){const button=document.createElement('button');button.textContent='Solicitar pareamento';button.onclick=async()=>{try{const r=await request(endpoint+'/session/request',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});if(!r.ok)throw Error();const p=await r.json();proof=p.proof;pairingId=p.pairingId;notice='Compare este identificador com o terminal humano: '+pairingId;}catch{notice='Pareamento indisponível.';}draw();};root.append(button);return;}
+  const code=document.createElement('p');code.textContent='Identificador público de pareamento: '+pairingId;root.append(code);
+  const update=document.createElement('button');update.textContent='Verificar pareamento / atualizar';update.onclick=refresh;root.append(update);
+  const revoke=document.createElement('button');revoke.textContent='Encerrar sessão';revoke.onclick=async()=>{await request(endpoint+'/session/revoke',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'}).catch(()=>{});proof=null;client=null;expiresAt=null;notice='Sessão encerrada.';draw();};root.append(revoke);
+  if(!client?.state.snapshot)return;
+  const expiry=document.createElement('p');expiry.textContent='Expira em '+new Date(expiresAt).toLocaleTimeString();root.append(expiry);
+  const view=document.createElement('section');view.innerHTML=renderWorkflow(client.state.snapshot,client.state);root.append(view);
+  if(client.state.stale)return;
+  for(const receipt of client.state.snapshot.receipts??[])for(const [gate,label]of [['handoff-check.py','Conferir entrega'],['successor-check.py','Conferir sucessor'],['zero-face-gate.py','Conferir registro zero-face']]){const check=document.createElement('button');check.textContent=label+' '+String(receipt.id).slice(0,8);check.onclick=async()=>{try{const response=await request(endpoint+'/gates/v1/'+encodeURIComponent(receipt.id)+'/'+gate);if(!response.ok)throw Error();const value=await response.json();notice=label+': '+value.decision+'. Conferência de gate não conclui tarefa nem concede aprovação criativa.';}catch{notice='Conferência de evidência recusada.';}draw();};root.append(check);}
+  if(client.state.snapshot.status==='draft'){const activate=document.createElement('button');activate.textContent='Ativar sequência local';activate.onclick=()=>command('activate');root.append(activate);}
+  if(client.state.snapshot.status==='active')for(const task of client.state.snapshot.tasks.filter(t=>['ready','planned','blocked'].includes(t.status))){const line=document.createElement('p');const button=document.createElement('button');if(task.status==='blocked'){button.textContent='Desbloquear '+task.id;button.onclick=()=>command('unblock',{taskId:task.id});}else{const reason=document.createElement('input');reason.setAttribute('aria-label','Motivo de bloqueio '+task.id);reason.maxLength=1024;line.append(reason);button.textContent='Bloquear '+task.id;button.onclick=()=>{if(reason.value.trim())void command('block',{taskId:task.id,reason:reason.value});};}line.append(button);root.append(line);}
+ };
+ draw();return()=>{proof=null;client=null;root.replaceChildren();};
+}

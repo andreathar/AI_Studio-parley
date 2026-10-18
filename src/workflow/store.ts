@@ -26,6 +26,7 @@ export type TaskSpec = {
     requiresGate?: boolean;
 };
 export type CycleSpec = {
+    cycleId?: string;
     handoffPolicy?: 'none' | 'movies/handoff/v1';
     projectId: string;
     episodeId: string;
@@ -272,7 +273,9 @@ export class WorkflowStore {
             done.add(name);
         };
         ids.forEach(visit);
-        const cycle = randomUUID();
+        const cycle = spec.cycleId === undefined ? randomUUID() : id(spec.cycleId);
+        if (!/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(cycle))
+            fail('Cycle UUID required', 400);
         this.transaction(() => {
             const project = this.get('SELECT * FROM projects WHERE id=?', spec.projectId);
             if (project && project.episode_id !== spec.episodeId)
@@ -306,9 +309,14 @@ export class WorkflowStore {
         if (!c)
             fail('Cycle not found', 404);
         const tasks = this.all('SELECT * FROM tasks WHERE cycle_id=? ORDER BY rowid', cycleId).map(t => ({ id: t.id, title: t.title, role: t.role, scope: t.scope, criteria: t.criteria, revision: t.revision, specDigest: t.spec_digest, requiresGate: !!t.requires_gate, status: t.state === 'planned' && c.status === 'active' && this.eligible(cycleId, t) ? 'ready' : t.state, reason: t.reason, accountableActorId: this.accountable(cycleId, t.id), dependsOn: this.all('SELECT depends_on FROM dependencies WHERE cycle_id=? AND task_id=? ORDER BY depends_on', cycleId, t.id).map(d => d.depends_on) }));
-        return { schema: 'movies-workflow/read/v1', projectId: c.project_id, cycleId: c.id, status: c.status, graphRevision: c.graph_revision, stateVersion: c.state_version, baseline: JSON.parse(c.baseline), handoffPolicy: c.handoff_policy, tasks, workers: this.all('SELECT id,role,kind,provider FROM workers WHERE cycle_id=? ORDER BY id', cycleId), assignments: this.all('SELECT a.*,o.state AS transport_state,o.native_receipt,o.transport_ack FROM assignments a JOIN outbox o ON o.assignment_id=a.id WHERE a.cycle_id=? ORDER BY a.rowid', cycleId), receipts: this.all('SELECT r.* FROM receipts r JOIN assignments a ON a.id=r.assignment_id WHERE a.cycle_id=? ORDER BY r.rowid', cycleId).map(r => ({ ...r, artifacts: this.all('SELECT path,sha256 FROM artifacts WHERE receipt_id=? ORDER BY path', r.id), handoff: (() => { const h = this.get('SELECT * FROM receipt_handoffs WHERE receipt_id=?', r.id); if (!h)
-                    return null; if (digest(h.payload) !== h.digest)
-                    fail('Handoff integrity failure'); return JSON.parse(h.payload); })() })), gates: this.all('SELECT * FROM gates WHERE cycle_id=? ORDER BY task_id', cycleId), history: this.all('SELECT * FROM historical_documents WHERE cycle_id=? ORDER BY source,sha256', cycleId), events: this.all('SELECT version,actor,operation,detail,at FROM events WHERE cycle_id=? ORDER BY version', cycleId) };
+        return { schema: 'movies-workflow/read/v1', projectId: c.project_id, cycleId: c.id, status: c.status, graphRevision: c.graph_revision, stateVersion: c.state_version, baseline: JSON.parse(c.baseline), handoffPolicy: c.handoff_policy, tasks, workers: this.all('SELECT id,role,kind,provider FROM workers WHERE cycle_id=? ORDER BY id', cycleId), assignments: this.all('SELECT a.*,o.state AS transport_state,o.native_receipt,o.transport_ack FROM assignments a JOIN outbox o ON o.assignment_id=a.id WHERE a.cycle_id=? ORDER BY a.rowid', cycleId), receipts: this.all('SELECT r.* FROM receipts r JOIN assignments a ON a.id=r.assignment_id WHERE a.cycle_id=? ORDER BY r.rowid', cycleId).map(r => ({ ...r, artifacts: this.all('SELECT path,sha256 FROM artifacts WHERE receipt_id=? ORDER BY path', r.id), handoff: (() => {
+                    const h = this.get('SELECT * FROM receipt_handoffs WHERE receipt_id=?', r.id);
+                    if (!h)
+                        return null;
+                    if (digest(h.payload) !== h.digest)
+                        fail('Handoff integrity failure');
+                    return JSON.parse(h.payload);
+                })() })), gates: this.all('SELECT * FROM gates WHERE cycle_id=? ORDER BY task_id', cycleId), history: this.all('SELECT * FROM historical_documents WHERE cycle_id=? ORDER BY source,sha256', cycleId), events: this.all('SELECT version,actor,operation,detail,at FROM events WHERE cycle_id=? ORDER BY version', cycleId) };
     }
     command(actorId: string, envelope: Command): CommandResult {
         if (!envelope || Object.keys(envelope).sort().join() !== 'cycleId,data,expectedVersion,idempotencyKey,type' || !Object.hasOwn(keys, envelope.type))

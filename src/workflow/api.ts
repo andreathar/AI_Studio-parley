@@ -1,6 +1,7 @@
 /** Inactive, local-only adapter. A trusted host must supply authenticated identity. */
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { WorkflowStore, WorkflowError, type Command } from './store';
+import type { GateName } from './cycleGates';
 import { projectLegacyRead, projectHandoff } from './compatibility';
 export type WorkflowPrincipal = {
     actorId: string;
@@ -10,6 +11,8 @@ export function createWorkflowHandler(options: {
     store: WorkflowStore;
     cycleId: string;
     resolveActor?: (request: IncomingMessage) => WorkflowPrincipal | null | Promise<WorkflowPrincipal | null>;
+    evaluateGate?: (receiptId: string, gate: GateName) => Promise<unknown>;
+    authorizeCommand?: (command: Command) => boolean;
     verifyReview?: (packet: ReturnType<typeof projectHandoff>) => Promise<boolean>;
 }): (req: IncomingMessage, res: ServerResponse) => Promise<void> {
     const route = `/api/workflow/v1/cycles/${options.cycleId}`;
@@ -21,13 +24,17 @@ export function createWorkflowHandler(options: {
         const readCompat = req.url === route + '/compat/legacy-read/v1';
         const handoffPrefix = route + '/compat/handoff/v1/';
         const receiptId = req.url?.startsWith(handoffPrefix) ? req.url.slice(handoffPrefix.length) : null;
+        const gateMatch = req.url?.match(new RegExp('^' + route + '/gates/v1/([a-zA-Z0-9_.:-]+)/(handoff-check[.]py|successor-check[.]py|zero-face-gate[.]py)$'));
+        const gateCompat = !!gateMatch && !!options.evaluateGate;
         const handoffCompat = !!receiptId && /^[a-zA-Z0-9_.:-]+$/.test(receiptId);
-        if (req.url !== route && req.url !== route + '/commands' && !readCompat && !handoffCompat)
+        if (req.url !== route && req.url !== route + '/commands' && !readCompat && !handoffCompat && !gateCompat)
             return send(404, { error: 'Route unavailable' });
         try {
             const principal = await options.resolveActor?.(req);
             if (!principal)
                 return send(403, { error: 'Authenticated host identity required' });
+            if (req.method === 'GET' && gateCompat)
+                return send(200, await options.evaluateGate!(gateMatch![1], gateMatch![2] as GateName));
             if (req.method === 'GET' && readCompat)
                 return send(200, projectLegacyRead(options.store.snapshot(options.cycleId)));
             if (req.method === 'GET' && handoffCompat)
@@ -60,6 +67,8 @@ export function createWorkflowHandler(options: {
             }
             if (body?.cycleId !== options.cycleId)
                 return send(409, { error: 'Cycle mismatch' });
+            if (options.authorizeCommand && options.authorizeCommand(body) !== true)
+                return send(403, { error: 'Command outside approved session scope' });
             if (body.type === 'review' && body.data?.accept === true && options.store.snapshot(options.cycleId).handoffPolicy === 'movies/handoff/v1') {
                 const snapshot = options.store.snapshot(options.cycleId);
                 if (!snapshot.workers.some(w => w.id === principal.actorId && ['producer', 'reviewer'].includes(w.kind)))
@@ -68,7 +77,9 @@ export function createWorkflowHandler(options: {
                 if (await options.verifyReview?.(packet) !== true)
                     return send(409, { error: 'Independent evidence verification required' });
             }
-            return send(200, options.store.command(principal.actorId, body));
+            const currentPrincipal=await options.resolveActor?.(req);
+            if(!currentPrincipal||currentPrincipal.actorId!==principal.actorId||currentPrincipal.readOnly)return send(403,{error:'Session expired or revoked before commit'});
+            return send(200, options.store.command(currentPrincipal.actorId, body));
         }
         catch (error) {
             if (error instanceof WorkflowError)

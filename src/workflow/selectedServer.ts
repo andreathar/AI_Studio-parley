@@ -2,7 +2,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createServer } from 'node:http';
+import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
+import { evaluateCycleGate, type GateContracts } from './cycleGates';
+import type { Command } from './store';
 import { DatabaseSync } from 'node:sqlite';
 import { validateSchema } from './schema';
 import { WorkflowStore } from './store';
@@ -26,6 +28,13 @@ export async function startSelectedWorkflow(options: {
     trustedIssuer?: string;
     verifyIdentity?: IdentityVerifier;
     verifyReview?: (packet: ReturnType<typeof projectHandoff>) => Promise<boolean>;
+    gateContext?: {
+        evidenceRoot: string;
+        contracts: GateContracts;
+    };
+    authorizeCommand?: (command: Command) => boolean;
+    sessionRoutes?: (req: IncomingMessage, res: ServerResponse) => Promise<boolean>;
+    uiMode?: 'read' | 'session';
     port?: number;
 }): Promise<IsolatedInstance> {
     const s = Object.freeze({ ...options.selection });
@@ -55,9 +64,11 @@ export async function startSelectedWorkflow(options: {
         if (current.dev !== before.dev || current.ino !== before.ino || snapshot.projectId !== s.projectId || snapshot.stateVersion !== s.expectedStateVersion || snapshot.graphRevision !== s.expectedGraphRevision || snapshot.handoffPolicy !== 'movies/handoff/v1')
             throw Error('Selected database changed while opening');
         const resolveActor = createVerifiedResolver({ store, projectId: s.projectId, cycleId: s.cycleId, trustedIssuer: options.trustedIssuer ?? '', verify: options.verifyIdentity });
-        const api = createWorkflowHandler({ store, cycleId: s.cycleId, resolveActor, verifyReview: options.verifyReview });
+        const api = createWorkflowHandler({ store, cycleId: s.cycleId, resolveActor, verifyReview: options.verifyReview, authorizeCommand: options.authorizeCommand, evaluateGate: options.gateContext ? async (receiptId, gate) => evaluateCycleGate({ snapshot: store.snapshot(s.cycleId), receiptId, gate, ...options.gateContext! }) : undefined });
         const module = fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), 'view.mjs'));
-        const bootstrap = `import {createWorkflowClient,mountWorkflowView} from '/workflow-view.mjs';\nconst client=createWorkflowClient(${JSON.stringify({ baseUrl: '/api/workflow/v1/cycles/' + s.cycleId, projectId: s.projectId, cycleId: s.cycleId })});\nmountWorkflowView(document.getElementById('root'),client);`;
+        let bootstrap = `import {createWorkflowClient,mountWorkflowView} from '/workflow-view.mjs';\nconst client=createWorkflowClient(${JSON.stringify({ baseUrl: '/api/workflow/v1/cycles/' + s.cycleId, projectId: s.projectId, cycleId: s.cycleId })});\nmountWorkflowView(document.getElementById('root'),client);`;
+        if (options.uiMode === 'session')
+            bootstrap = `import {mountSessionView} from '/session-view.mjs';\nmountSessionView(document.getElementById('root'),${JSON.stringify({ baseUrl: '/api/workflow/v1/cycles/' + s.cycleId, projectId: s.projectId, cycleId: s.cycleId })});`;
         const assets = new Map<string, [
             string,
             string | Buffer
@@ -66,6 +77,8 @@ export async function startSelectedWorkflow(options: {
             ['/bootstrap.mjs', ['text/javascript', bootstrap]], ['/workflow-view.mjs', ['text/javascript', module]],
             ['/workflow.css', ['text/css', 'body{background:#10141c;color:#eef1fa;font:15px system-ui;margin:3vw}table{width:100%;border-collapse:collapse}td,th{text-align:left;border-bottom:1px solid #364159;padding:12px}p{color:#bdc9df}th{color:#8fbaff}button{background:#1b426c;color:white;border:1px solid #6a8ab8;padding:10px;border-radius:6px}']]
         ]);
+        if (options.uiMode === 'session')
+            assets.set('/session-view.mjs', ['text/javascript', fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), 'session-view.mjs'))]);
         server = createServer((req, res) => {
             const host = `127.0.0.1:${req.socket.localPort}`;
             const document = req.url === '/' && req.headers['sec-fetch-mode'] === 'navigate' && req.headers['sec-fetch-dest'] === 'document' && !req.headers.origin;
@@ -75,7 +88,16 @@ export async function startSelectedWorkflow(options: {
                 return;
             }
             if (req.url?.startsWith('/api/')) {
-                void api(req, res);
+                void (async () => { try {
+                    if (req.url?.startsWith('/api/workflow/v1/cycles/' + s.cycleId + '/session/') && await options.sessionRoutes?.(req, res))
+                        return;
+                    await api(req, res);
+                }
+                catch {
+                    if (!res.headersSent)
+                        res.writeHead(409);
+                    res.end();
+                } })();
                 return;
             }
             const asset = assets.get(req.url ?? '');
@@ -95,8 +117,14 @@ export async function startSelectedWorkflow(options: {
             throw Error('Local listener unavailable');
         let closed = false;
         const owned = server;
-        return { url: `http://127.0.0.1:${address.port}/`, cycleId: s.cycleId, server, store, close: async () => { if (closed)
-                return; closed = true; owned.closeAllConnections(); await new Promise<void>(resolve => owned.close(() => resolve())); store.close(); } };
+        return { url: `http://127.0.0.1:${address.port}/`, cycleId: s.cycleId, server, store, close: async () => {
+                if (closed)
+                    return;
+                closed = true;
+                owned.closeAllConnections();
+                await new Promise<void>(resolve => owned.close(() => resolve()));
+                store.close();
+            } };
     }
     catch (error) {
         server?.closeAllConnections();

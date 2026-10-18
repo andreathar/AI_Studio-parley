@@ -264,3 +264,9 @@ new source files and restoration of this work's own modified sources from its
 private baseline. Production data needs no rollback because it was not touched.
 After any future activation, reconcile new SQLite events before choosing an old
 source again; never overwrite post-activation work with a stale backup.
+
+The subsequent approved preparation adds the real human-paired entrypoint,
+without changing the ordinary entrypoint or activating production. See
+[movies-local-session.md](movies-local-session.md) for the exact fixed namespace,
+30-minute pairing protocol, command scope, prepared gate routes and future launch
+command. Production Stop hook routing is still not installed.
