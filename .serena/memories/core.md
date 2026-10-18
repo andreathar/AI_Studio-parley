@@ -1,0 +1,6 @@
+# Core
+
+- Current checkout is a TypeScript/React dashboard and Express server under `src/` plus root `server.ts`; it presents seeded agent-coordination data and includes Kling/Gemini and Movies_Projects views.
+- The checkout's README, CONTRIBUTING.md, AGENTS.md, docs, and package manifest describe conflicting projects/toolchains: docs and AGENTS.md describe a Python `agent-parley` package, while `package.json`, `bun.lock`, `server.ts`, and `src/` are the running web app. For implementation, verify the target against current source and package scripts; do not assume Python `make check` applies.
+- Backend routes are in root `server.ts`; React app and UI are under `src/`, with domain interfaces in `src/types.ts` and sample state in `src/data/`. State appears to be process-local seeded data, not durable storage.
+- Read `mem:tech_stack` for stack/package details, `mem:conventions` for observed TypeScript patterns and the documentation mismatch, `mem:suggested_commands` for local commands, and `mem:task_completion` for verification commands.
