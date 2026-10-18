@@ -15,6 +15,7 @@ app.use(express.json({ limit: '25mb' }));
 app.use(express.urlencoded({ extended: true, limit: '25mb' }));
 
 import fs from 'fs';
+import { execSync } from 'child_process';
 
 // Load .env variables into process.env if present
 try {
@@ -234,6 +235,17 @@ app.get('/api/github/status', async (req: Request, res: Response) => {
 app.post('/api/projects/movies/sync', async (req: Request, res: Response) => {
   const token = process.env.GITHUB_TOKEN;
   let commitDetail = 'main branch verified';
+  let pullSummary = 'up-to-date';
+
+  // Run git pull from remote origin main
+  try {
+    const gitPullOut = execSync('git pull origin main --no-edit 2>&1').toString().trim();
+    const gitLogOut = execSync('git log -n 1 --oneline 2>&1').toString().trim();
+    pullSummary = gitPullOut.split('\n')[0];
+    commitDetail = gitLogOut;
+  } catch (gitErr: any) {
+    pullSummary = gitErr.message;
+  }
 
   if (token) {
     try {
@@ -245,7 +257,7 @@ app.post('/api/projects/movies/sync', async (req: Request, res: Response) => {
       });
       if (commitRes.ok) {
         const commitData = (await commitRes.json()) as any;
-        commitDetail = `main @ ${commitData.sha.slice(0, 7)}: "${commitData.commit.message.split('\n')[0].slice(0, 45)}"`;
+        commitDetail = `Movies_Projects @ ${commitData.sha.slice(0, 7)}: "${commitData.commit.message.split('\n')[0].slice(0, 45)}"`;
       }
     } catch {}
   }
@@ -255,7 +267,7 @@ app.post('/api/projects/movies/sync', async (req: Request, res: Response) => {
     timestamp: new Date().toLocaleTimeString(),
     type: 'merge',
     lane: 'sync-daemon',
-    detail: `Synchronized remote state with https://github.com/andreathar/Movies_Projects (${commitDetail})`,
+    detail: `Synchronized workspace & pulled remote state: ${commitDetail}`,
   });
 
   res.json({
@@ -264,10 +276,35 @@ app.post('/api/projects/movies/sync', async (req: Request, res: Response) => {
     branch: 'main',
     syncTimestamp: new Date().toISOString(),
     status: 'up-to-date',
+    pullSummary,
     commitDetail,
     lanesSynchronized: lanes.length,
     activeWorktrees: lanes.map((l) => l.worktree),
   });
+});
+
+app.post('/api/git/pull', (req: Request, res: Response) => {
+  try {
+    const gitPullOut = execSync('git pull origin main --no-edit 2>&1').toString().trim();
+    const gitLogOut = execSync('git log -n 1 --oneline 2>&1').toString().trim();
+    events.unshift({
+      id: `ev-${Date.now()}`,
+      timestamp: new Date().toLocaleTimeString(),
+      type: 'merge',
+      lane: 'git-sync',
+      detail: `Git pull executed: ${gitLogOut}`,
+    });
+    res.json({
+      success: true,
+      output: gitPullOut,
+      latestCommit: gitLogOut,
+    });
+  } catch (err: any) {
+    res.status(500).json({
+      success: false,
+      error: err.message,
+    });
+  }
 });
 
 app.get('/api/lanes', (req: Request, res: Response) => {
