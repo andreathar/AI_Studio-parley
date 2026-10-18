@@ -22,7 +22,8 @@ import {
   ArrowRight,
   RefreshCw,
   Search,
-  Check
+  Check,
+  PlugZap
 } from 'lucide-react';
 
 interface TopStatusViewProps {
@@ -115,6 +116,33 @@ export const TopStatusView: React.FC<TopStatusViewProps> = ({
 
   return (
     <div className="space-y-6">
+      {/* Real Project Connection Quick Banner */}
+      <div className="bg-gradient-to-r from-emerald-950/30 via-[#161b22] to-cyan-950/30 border border-emerald-500/30 rounded-xl p-3.5 px-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center shrink-0">
+            <PlugZap className="w-4 h-4 text-emerald-400" />
+          </div>
+          <div>
+            <div className="text-xs font-semibold text-white flex items-center gap-2">
+              <span>Ready for Real Local & Remote Testing</span>
+              <span className="px-1.5 py-0.2 rounded text-[10px] font-mono bg-emerald-500/20 text-emerald-300">
+                andreathar/Movies_Projects
+              </span>
+            </div>
+            <p className="text-[11px] text-[#8b949e] mt-0.5">
+              API keys in <code className="text-cyan-300 font-mono">.env</code> are loaded (GitHub PAT + Gemini 3.8 Flash + Anthropic Key).
+            </p>
+          </div>
+        </div>
+        <button
+          onClick={() => onSelectTab('connect')}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-medium rounded-lg shadow-sm transition-colors shrink-0"
+        >
+          <span>Connect & Test Real Project</span>
+          <ArrowRight className="w-3.5 h-3.5" />
+        </button>
+      </div>
+
       {/* 3 Summary Header Rows (as in agent-parley top) */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* Row 1: Lanes Summary */}

@@ -16,7 +16,8 @@ import {
   ShieldCheck,
   GitFork,
   HardDrive,
-  Sparkles
+  Sparkles,
+  PlugZap
 } from 'lucide-react';
 import { TopSummary, Budget } from '../types';
 
@@ -43,6 +44,7 @@ export const Header: React.FC<HeaderProps> = ({
 }) => {
   const tabs = [
     { id: 'top', label: 'Top Dashboard', icon: Activity, badge: null },
+    { id: 'connect', label: 'Connect Real Project', icon: PlugZap, badge: 'Live' },
     { id: 'lanes', label: 'Lanes', icon: Layers, badge: `${summary.lanesWorking}/${summary.lanesTotal}` },
     { id: 'issues', label: 'Issues & Claims', icon: CheckSquare, badge: summary.issuesOpen > 0 ? `${summary.issuesOpen} open` : null },
     { id: 'mail', label: 'Mail & Handoffs', icon: Mail, badge: null },

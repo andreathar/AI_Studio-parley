@@ -34,6 +34,7 @@ import { DiagnosticsView } from './components/DiagnosticsView';
 import { ArchitectureView } from './components/ArchitectureView';
 import { SharedMediaView } from './components/SharedMediaView';
 import { KlingStudioView } from './components/KlingStudioView';
+import { ConnectProjectView } from './components/ConnectProjectView';
 import { MoviesProjectBanner } from './components/MoviesProjectBanner';
 import { SpawnLaneModal } from './components/SpawnLaneModal';
 import { BudgetModal } from './components/BudgetModal';
@@ -553,6 +554,13 @@ export const App: React.FC = () => {
             onDismissProblem={handleDismissProblem}
             onSelectTab={setActiveTab}
             onComposeMessageTo={handleComposeMessageTo}
+          />
+        )}
+
+        {activeTab === 'connect' && (
+          <ConnectProjectView
+            onSelectTab={setActiveTab}
+            onExecuteCommand={handleExecuteCommand}
           />
         )}
 

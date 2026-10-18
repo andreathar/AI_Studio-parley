@@ -14,6 +14,30 @@ app.use(cors());
 app.use(express.json({ limit: '25mb' }));
 app.use(express.urlencoded({ extended: true, limit: '25mb' }));
 
+import fs from 'fs';
+
+// Load .env variables into process.env if present
+try {
+  const envPath = path.resolve(process.cwd(), '.env');
+  if (fs.existsSync(envPath)) {
+    const envContent = fs.readFileSync(envPath, 'utf-8');
+    for (const line of envContent.split('\n')) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) continue;
+      const m = trimmed.match(/^([^=]+)=(.*)$/);
+      if (m) {
+        const k = m[1].trim();
+        const v = m[2].trim().replace(/^['"]|['"]$/g, '');
+        if (v) {
+          process.env[k] = v;
+        }
+      }
+    }
+  }
+} catch (e) {
+  // Ignore
+}
+
 import { enhanceKlingPrompt, critiqueKlingVision, getGeminiApiKey } from './src/server/klingAiService';
 
 // Ensure valid Gemini API key is synchronized into process.env at server startup
@@ -134,20 +158,113 @@ app.post('/api/projects/switch', (req: Request, res: Response) => {
   });
 });
 
-app.post('/api/projects/movies/sync', (req: Request, res: Response) => {
+app.get('/api/github/status', async (req: Request, res: Response) => {
+  const token = process.env.GITHUB_TOKEN;
+  if (!token) {
+    return res.json({ connected: false, error: 'No GITHUB_TOKEN configured in .env' });
+  }
+
+  try {
+    const userRes = await fetch('https://api.github.com/user', {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'User-Agent': 'agent-parley-orchestrator',
+      },
+    });
+
+    if (!userRes.ok) {
+      return res.json({ connected: false, error: `GitHub API returned ${userRes.status}` });
+    }
+
+    const userData = (await userRes.json()) as any;
+
+    const repoRes = await fetch('https://api.github.com/repos/andreathar/Movies_Projects', {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'User-Agent': 'agent-parley-orchestrator',
+      },
+    });
+
+    let repoData: any = null;
+    let recentCommits: any[] = [];
+
+    if (repoRes.ok) {
+      repoData = await repoRes.json();
+      const commitsRes = await fetch('https://api.github.com/repos/andreathar/Movies_Projects/commits?per_page=3', {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'User-Agent': 'agent-parley-orchestrator',
+        },
+      });
+      if (commitsRes.ok) {
+        const rawCommits = (await commitsRes.json()) as any[];
+        recentCommits = rawCommits.map((c) => ({
+          sha: c.sha.slice(0, 7),
+          message: c.commit.message,
+          author: c.commit.author?.name || 'Developer',
+          date: c.commit.author?.date || '',
+        }));
+      }
+    }
+
+    res.json({
+      connected: true,
+      user: {
+        login: userData.login,
+        name: userData.name || userData.login,
+        avatar_url: userData.avatar_url,
+      },
+      repo: repoData
+        ? {
+            fullName: repoData.full_name,
+            isPrivate: repoData.private,
+            defaultBranch: repoData.default_branch,
+            openIssues: repoData.open_issues_count,
+            htmlUrl: repoData.html_url,
+            updatedAt: repoData.updated_at,
+            recentCommits,
+          }
+        : null,
+    });
+  } catch (err: any) {
+    res.json({ connected: false, error: err.message || 'GitHub network check failed' });
+  }
+});
+
+app.post('/api/projects/movies/sync', async (req: Request, res: Response) => {
+  const token = process.env.GITHUB_TOKEN;
+  let commitDetail = 'main branch verified';
+
+  if (token) {
+    try {
+      const commitRes = await fetch('https://api.github.com/repos/andreathar/Movies_Projects/commits/main', {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'User-Agent': 'agent-parley-orchestrator',
+        },
+      });
+      if (commitRes.ok) {
+        const commitData = (await commitRes.json()) as any;
+        commitDetail = `main @ ${commitData.sha.slice(0, 7)}: "${commitData.commit.message.split('\n')[0].slice(0, 45)}"`;
+      }
+    } catch {}
+  }
+
   events.unshift({
     id: `ev-${Date.now()}`,
     timestamp: new Date().toLocaleTimeString(),
     type: 'merge',
     lane: 'sync-daemon',
-    detail: 'Synchronized remote state with https://github.com/andreathar/Movies_Projects (main branch verified)',
+    detail: `Synchronized remote state with https://github.com/andreathar/Movies_Projects (${commitDetail})`,
   });
+
   res.json({
     success: true,
     repo: 'andreathar/Movies_Projects',
     branch: 'main',
     syncTimestamp: new Date().toISOString(),
     status: 'up-to-date',
+    commitDetail,
     lanesSynchronized: lanes.length,
     activeWorktrees: lanes.map((l) => l.worktree),
   });
@@ -585,6 +702,17 @@ app.get('/api/diagnostics', (req: Request, res: Response) => {
       notes: geminiKey ? `Configured (length: ${geminiKey.length} chars)` : 'Optional: Set if utilizing server-side Gemini features',
     },
     {
+      name: 'ANTHROPIC_API_KEY',
+      category: 'Integrations',
+      value: process.env.ANTHROPIC_API_KEY ? `sk-ant...${process.env.ANTHROPIC_API_KEY.slice(-4)}` : null,
+      isSecret: true,
+      isSet: Boolean(process.env.ANTHROPIC_API_KEY),
+      status: process.env.ANTHROPIC_API_KEY ? 'healthy' : 'optional_missing',
+      expected: 'sk-ant-...',
+      description: 'Anthropic API key for driving Claude Code CLI or Claude agent lanes.',
+      notes: process.env.ANTHROPIC_API_KEY ? `Configured (length: ${process.env.ANTHROPIC_API_KEY.length} chars)` : 'Optional: Used when running Claude Code lanes',
+    },
+    {
       name: 'MCP_SHARED_SECRET',
       category: 'Security',
       value: mcpSecret ? `••••••••${mcpSecret.slice(-4)}` : null,
@@ -836,11 +964,100 @@ Handoff: Ready for autonomous lane execution via scripts/kling_release.py
   });
 });
 
-// MCP tool dispatch endpoint (matching agent_parley server.py)
-app.post('/api/mcp/tools/call', (req: Request, res: Response) => {
-  const { name, arguments: args } = req.body;
-  if (!name) return res.status(400).json({ error: 'Tool name required' });
+// Available MCP Tools matching agent-parley and Movies_Projects specifications
+const MCP_TOOL_DEFINITIONS = [
+  {
+    name: 'send_message',
+    description: 'Dispatch an advisory message or handoff notice to one or more participant lanes or the operator.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        from: { type: 'string', description: 'Sender lane ID or operator' },
+        to: { type: 'array', items: { type: 'string' }, description: 'Target lane ID(s)' },
+        subject: { type: 'string', description: 'Subject line' },
+        body_md: { type: 'string', description: 'Message body in markdown' },
+        thread_id: { type: 'string', description: 'Optional correlation thread ID' },
+        ack_required: { type: 'boolean', description: 'Whether recipient lane must acknowledge receipt' },
+      },
+      required: ['to', 'subject', 'body_md'],
+    },
+  },
+  {
+    name: 'fetch_inbox',
+    description: 'Fetch pending, unread, or unacknowledged coordination messages from the mailbox.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        owner: { type: 'string', description: 'Optional lane ID to filter mailbox for' },
+        limit: { type: 'number', description: 'Max number of messages to return (default: 5)' },
+      },
+    },
+  },
+  {
+    name: 'file_reservation_paths',
+    description: 'Acquire advisory path leases to prevent concurrent edits or merge conflicts across worktrees.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        paths: { type: 'array', items: { type: 'string' }, description: 'Repository relative file or directory paths to lease' },
+        owner: { type: 'string', description: 'Lane acquiring the lease' },
+        reason: { type: 'string', description: 'Description of active work' },
+        ttl_seconds: { type: 'number', description: 'Time-to-live in seconds (default 1800)' },
+      },
+      required: ['paths', 'owner'],
+    },
+  },
+  {
+    name: 'release_reservation_paths',
+    description: 'Release previously acquired advisory file leases once work or pull request is complete.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        paths: { type: 'array', items: { type: 'string' }, description: 'Paths to release' },
+        owner: { type: 'string', description: 'Lane releasing the lease' },
+      },
+      required: ['paths', 'owner'],
+    },
+  },
+  {
+    name: 'claim_issue',
+    description: 'Atomically claim an issue from the forge queue for the calling lane.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        issue_id: { type: 'string', description: 'Issue ID (e.g. #101)' },
+        lane_id: { type: 'string', description: 'Lane acquiring ownership' },
+      },
+      required: ['issue_id', 'lane_id'],
+    },
+  },
+  {
+    name: 'get_coordination_status',
+    description: 'Query live coordination status: active lanes, claims, budget, leases, and problems.',
+    inputSchema: {
+      type: 'object',
+      properties: {},
+    },
+  },
+  {
+    name: 'kling_enhance_prompt',
+    description: 'Enhance a rough video generation prompt using Gemini 3.8 Flash with camera motion and strict naming conventions.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        rough_prompt: { type: 'string', description: 'Draft prompt text' },
+        version: { type: 'string', description: 'Kling version (kling-2.0-master or kling-1.6-pro)' },
+        scene: { type: 'string', description: 'Scene number (e.g. 01)' },
+        shot: { type: 'string', description: 'Shot number (e.g. 01)' },
+        character: { type: 'string', description: 'Character name (e.g. andre)' },
+      },
+      required: ['rough_prompt'],
+    },
+  },
+];
 
+// Execute MCP Tool call helper
+async function handleMcpToolExecution(name: string, args: any) {
   if (name === 'send_message') {
     const newMsg = {
       id: messages.length + 1,
@@ -855,15 +1072,24 @@ app.post('/api/mcp/tools/call', (req: Request, res: Response) => {
       timestamp: new Date().toISOString().replace('T', ' ').slice(0, 19),
     };
     messages.unshift(newMsg);
-    return res.json({
-      content: [{ type: 'text', text: JSON.stringify({ status: 'sent', message_id: newMsg.id }) }],
+    events.unshift({
+      id: `ev-${Date.now()}`,
+      timestamp: new Date().toLocaleTimeString(),
+      type: 'message',
+      lane: newMsg.from,
+      detail: `MCP: dispatched message to ${newMsg.to.join(', ')}: ${newMsg.subject}`,
     });
+    return {
+      content: [{ type: 'text', text: JSON.stringify({ status: 'sent', message_id: newMsg.id, subject: newMsg.subject }) }],
+    };
   }
 
   if (name === 'fetch_inbox') {
-    return res.json({
-      content: [{ type: 'text', text: JSON.stringify({ messages: messages.slice(0, 5) }) }],
-    });
+    const limit = args.limit || 5;
+    const filtered = args.owner ? messages.filter((m) => m.to.includes(args.owner)) : messages;
+    return {
+      content: [{ type: 'text', text: JSON.stringify({ messages: filtered.slice(0, limit) }) }],
+    };
   }
 
   if (name === 'file_reservation_paths') {
@@ -884,19 +1110,242 @@ app.post('/api/mcp/tools/call', (req: Request, res: Response) => {
           owner,
           reason,
           acquiredAt: new Date().toISOString().replace('T', ' ').slice(0, 19),
-          ttlSeconds: 1800,
+          ttlSeconds: args.ttl_seconds || 1800,
         };
         reservations.push(newRes);
         granted.push(p);
       }
     });
 
-    return res.json({
+    events.unshift({
+      id: `ev-${Date.now()}`,
+      timestamp: new Date().toLocaleTimeString(),
+      type: 'reservation',
+      lane: owner,
+      detail: `MCP: filed ${granted.length} leases, ${conflicts.length} conflicts`,
+    });
+
+    return {
       content: [{ type: 'text', text: JSON.stringify({ granted, conflicts }) }],
+    };
+  }
+
+  if (name === 'release_reservation_paths') {
+    const paths = args.paths || [];
+    const owner = args.owner;
+    let releasedCount = 0;
+    paths.forEach((p: string) => {
+      const idx = reservations.findIndex((r) => r.path === p && (!owner || r.owner === owner));
+      if (idx !== -1) {
+        reservations.splice(idx, 1);
+        releasedCount++;
+      }
+    });
+    return {
+      content: [{ type: 'text', text: JSON.stringify({ releasedCount, remainingReservations: reservations.length }) }],
+    };
+  }
+
+  if (name === 'claim_issue') {
+    const issue = issues.find((i) => i.id === args.issue_id);
+    if (!issue) {
+      throw new Error(`Issue ${args.issue_id} not found`);
+    }
+    const lane = lanes.find((l) => l.id === args.lane_id);
+    if (!lane) {
+      throw new Error(`Lane ${args.lane_id} not found`);
+    }
+    issue.assignee = args.lane_id;
+    issue.status = 'in_progress';
+    if (!lane.ownedIssues.includes(issue.id)) {
+      lane.ownedIssues.push(issue.id);
+    }
+    return {
+      content: [{ type: 'text', text: JSON.stringify({ status: 'claimed', issueId: issue.id, assignee: lane.id }) }],
+    };
+  }
+
+  if (name === 'get_coordination_status') {
+    return {
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify({
+            summary: getTopSummary(),
+            activeProject,
+            lanesCount: lanes.length,
+            leasesCount: reservations.length,
+            openIssuesCount: issues.filter((i) => i.status === 'open').length,
+          }),
+        },
+      ],
+    };
+  }
+
+  if (name === 'kling_enhance_prompt') {
+    const enhanced = await enhanceKlingPrompt({
+      roughPrompt: args.rough_prompt,
+      version: args.version || 'kling-2.0-master',
+      character: args.character || 'andre',
+      sceneNumber: args.scene || '01',
+      shotNumber: args.shot || '01',
+      project: 'andre-time-travel',
+      shotType: args.shot_type || 'medium-shot',
+      cameraMovement: args.camera_movement || 'push-in',
+      lightingStyle: args.lighting || 'cinematic tungsten',
+      intensity: 5,
+      descriptor: args.descriptor || 'cinematic_shot',
+    });
+    return {
+      content: [{ type: 'text', text: JSON.stringify(enhanced) }],
+    };
+  }
+
+  throw new Error(`Unknown tool: ${name}`);
+}
+
+// Master MCP Router handling JSON-RPC 2.0 requests
+async function handleMcpJsonRpc(req: Request, res: Response) {
+  const body = req.body || {};
+  const { jsonrpc, id, method, params } = body;
+
+  // Optional Auth check: if client sent Authorization Bearer, verify match if set
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    const token = authHeader.slice(7).trim();
+    const expected = process.env.MCP_SHARED_SECRET;
+    if (expected && token !== expected) {
+      console.warn(`[MCP] Warning: Bearer token mismatch (${token.slice(0, 6)}... vs expected)`);
+    }
+  }
+
+  // 1. Handshake / Initialize
+  if (method === 'initialize') {
+    return res.json({
+      jsonrpc: '2.0',
+      id,
+      result: {
+        protocolVersion: '2024-11-05',
+        capabilities: {
+          tools: {
+            listChanged: false,
+          },
+        },
+        serverInfo: {
+          name: 'agent-parley',
+          version: '0.18.0',
+        },
+      },
     });
   }
 
-  res.status(501).json({ error: `Tool ${name} not yet implemented` });
+  // 2. Notification acknowledgment
+  if (method === 'notifications/initialized') {
+    return res.status(200).json({ jsonrpc: '2.0' });
+  }
+
+  // 3. Ping
+  if (method === 'ping') {
+    return res.json({ jsonrpc: '2.0', id, result: {} });
+  }
+
+  // 4. List Tools
+  if (method === 'tools/list') {
+    return res.json({
+      jsonrpc: '2.0',
+      id,
+      result: {
+        tools: MCP_TOOL_DEFINITIONS,
+      },
+    });
+  }
+
+  // 5. Call Tool
+  if (method === 'tools/call') {
+    try {
+      const toolName = params?.name;
+      const toolArgs = params?.arguments || {};
+      const output = await handleMcpToolExecution(toolName, toolArgs);
+      return res.json({
+        jsonrpc: '2.0',
+        id,
+        result: output,
+      });
+    } catch (err: any) {
+      return res.json({
+        jsonrpc: '2.0',
+        id,
+        error: {
+          code: -32603,
+          message: err.message || 'Internal error in MCP tool execution',
+        },
+      });
+    }
+  }
+
+  // Fallback for simple REST tool execution requests (backwards compatibility)
+  if (body.name && !method) {
+    try {
+      const output = await handleMcpToolExecution(body.name, body.arguments || {});
+      return res.json(output);
+    } catch (err: any) {
+      return res.status(500).json({ error: err.message });
+    }
+  }
+
+  return res.json({
+    jsonrpc: '2.0',
+    id: id || null,
+    error: {
+      code: -32601,
+      message: `Method '${method}' not found`,
+    },
+  });
+}
+
+// Bind MCP JSON-RPC routes
+app.post('/api/mcp', handleMcpJsonRpc);
+app.post('/api/mcp/message', handleMcpJsonRpc);
+app.post('/mcp', handleMcpJsonRpc);
+app.post('/api/mcp/tools/call', async (req: Request, res: Response) => {
+  try {
+    const { name, arguments: args } = req.body;
+    if (!name) return res.status(400).json({ error: 'Tool name required' });
+    const output = await handleMcpToolExecution(name, args || {});
+    res.json(output);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// SSE Stream transport for mcp-remote GET requests
+app.get(['/api/mcp', '/mcp', '/api/mcp/sse'], (req: Request, res: Response) => {
+  if (req.headers.accept && req.headers.accept.includes('text/event-stream')) {
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.flushHeaders?.();
+    const endpointUrl = `${req.baseUrl || ''}/api/mcp/message`;
+    res.write(`event: endpoint\ndata: ${endpointUrl}\n\n`);
+    const heartbeat = setInterval(() => {
+      res.write(': heartbeat\n\n');
+    }, 15000);
+    req.on('close', () => {
+      clearInterval(heartbeat);
+    });
+  } else {
+    res.json({
+      name: 'agent-parley',
+      version: '0.18.0',
+      status: 'active',
+      transport: ['http-jsonrpc-2.0', 'sse'],
+      endpoints: {
+        jsonRpcPost: '/api/mcp',
+        sseGet: '/api/mcp/sse',
+      },
+      toolsCount: MCP_TOOL_DEFINITIONS.length,
+    });
+  }
 });
 
 // Webhook endpoint from agent_parley/server.py
