@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { validateSnapshot, localOrigin } from '../src/local-movies-view.mjs';
+import { observation } from './helpers/observation.mjs';
 
 export function fixture() {
   return {
@@ -54,4 +55,16 @@ test('accepts local hosts and refuses public origins before file import', () => 
   assert.equal(localOrigin({ protocol: 'file:', hostname: '' }), true);
   assert.equal(localOrigin({ protocol: 'https:', hostname: 'agent-parley.ai.studio' }), false);
   assert.equal(localOrigin({ protocol: 'http:', hostname: '127.0.0.1.evil.test' }), false);
+});
+
+test('accepts real coordinator readings and preserves explicit stale participant status',()=>{
+  const input=fixture();input.schema='movies-ai-studio/local-session/v1';input.mode='local_read_only';
+  input.runtimeCoordinator=observation();input.runtimeStaleIds=['codex'];input.movies.assetRecords=2;
+  const value=validateSnapshot(input);
+  assert.equal(value.runtimeCoordinator.participants[0].id,'codex');
+  assert.deepEqual(value.runtimeStaleIds,['codex']);
+  const wrong=structuredClone(input);wrong.runtimeStaleIds=['foreign'];
+  assert.throws(()=>validateSnapshot(wrong),/Snapshot/);
+  const privateField=structuredClone(input);privateField.runtimeCoordinator.participants[0].credential='PRIVATE';
+  assert.throws(()=>validateSnapshot(privateField),/Snapshot/);
 });

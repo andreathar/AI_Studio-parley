@@ -8,7 +8,12 @@
     "build": "vite build",
     "start": "tsx server-entry.ts",
     "lint": "tsc --noEmit",
-    "test:observer": "node --import tsx tests/movies-observer.test.mjs && node tests/online-movies.test.mjs && node --import tsx tests/observer-entry.test.mjs && python3 -B -m unittest discover -s tests -p test_movies_publish.py"
+    "local:start": "python3 -B -m scripts.movies_local start",
+    "local:status": "python3 -B -m scripts.movies_local status",
+    "local:stop": "python3 -B -m scripts.movies_local stop",
+    "local:serve": "python3 -B -m scripts.movies_local serve",
+    "test:observer": "node --import tsx tests/movies-observer.test.mjs && node tests/online-movies.test.mjs && node --import tsx tests/observer-entry.test.mjs && python3 -B -m unittest discover -s tests -p test_movies_publish.py",
+    "test:persistence": "node --import tsx tests/persistence.test.mjs"
   },
   "dependencies": {
     "@google/genai": "^2.29.1",

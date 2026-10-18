@@ -72,6 +72,7 @@ import {
   moviesProjectProblems, 
   moviesProjectEvents 
 } from './src/data/moviesProjectData';
+import { initStateStore, loadProjectState, persistState, getPersistenceWarning } from './src/server/stateStore';
 
 // Active project configuration - defaulting to andreathar/Movies_Projects
 let activeProject = 'movies_projects';
@@ -84,6 +85,44 @@ let plans: any[] = JSON.parse(JSON.stringify(moviesProjectPlans));
 let budget: any = JSON.parse(JSON.stringify(moviesProjectBudget));
 let problems: any[] = JSON.parse(JSON.stringify(moviesProjectProblems));
 let events: any[] = JSON.parse(JSON.stringify(moviesProjectEvents));
+
+function seedSnapshotFor(project: string) {
+  if (project === 'movies_projects') {
+    return JSON.parse(JSON.stringify({ lanes: moviesProjectLanes, issues: moviesProjectIssues, reservations: moviesProjectReservations, messages: moviesProjectMessages, plans: moviesProjectPlans, budget: moviesProjectBudget, problems: moviesProjectProblems, events: moviesProjectEvents }));
+  }
+  return JSON.parse(JSON.stringify({ lanes: initialLanes, issues: initialIssues, reservations: initialReservations, messages: initialMessages, plans: initialPlans, budget: initialBudget, problems: initialProblems, events: initialEvents }));
+}
+function currentSnapshot() {
+  return { lanes, issues, reservations, messages, plans, budget, problems, events };
+}
+function applySnapshot(snap: any) {
+  lanes = snap.lanes; issues = snap.issues; reservations = snap.reservations; messages = snap.messages;
+  plans = snap.plans; budget = snap.budget; problems = snap.problems; events = snap.events;
+}
+function persistOr500(res: Response): boolean {
+  try { persistState(activeProject, currentSnapshot()); return true; }
+  catch (err: any) { console.error(`[persistence] save failed: ${err.message || err}`); res.status(500).json({ error: `Persistence failed: ${err.message || err}` }); return false; }
+}
+function persistOrThrow(): void { persistState(activeProject, currentSnapshot()); }
+
+// Initialize persistence before app.listen (routes below are only served after listen).
+try {
+  const initInfo = initStateStore();
+  if (initInfo.activeProject) activeProject = initInfo.activeProject === 'movies_projects' ? 'movies_projects' : 'default';
+  const loaded = loadProjectState(activeProject);
+  if (loaded) {
+    applySnapshot(loaded);
+    console.log(`[persistence] boot source=snapshot project=${activeProject}`);
+  } else {
+    applySnapshot(seedSnapshotFor(activeProject));
+    persistState(activeProject, currentSnapshot());
+    console.log(`[persistence] seed (no snapshot) project=${activeProject}`);
+    console.log(`[persistence] boot source=seed project=${activeProject}`);
+  }
+} catch (err: any) {
+  console.error(`[persistence] failed to initialize persistence: ${err.message || err}`);
+  throw err;
+}
 
 // Helper to calculate top summary
 function getTopSummary() {
@@ -118,6 +157,7 @@ app.get('/api/status', (req: Request, res: Response) => {
     targetRepo: activeProject === 'movies_projects' ? 'andreathar/Movies_Projects' : 'sandbox',
     repoUrl: 'https://github.com/andreathar/Movies_Projects',
     summary: getTopSummary(),
+    persistenceWarning: getPersistenceWarning(),
     lanes,
     issues,
     reservations,
@@ -138,27 +178,15 @@ app.get('/api/projects/current', (req: Request, res: Response) => {
 
 app.post('/api/projects/switch', (req: Request, res: Response) => {
   const { project } = req.body;
-  if (project === 'movies_projects') {
-    activeProject = 'movies_projects';
-    lanes = JSON.parse(JSON.stringify(moviesProjectLanes));
-    issues = JSON.parse(JSON.stringify(moviesProjectIssues));
-    reservations = JSON.parse(JSON.stringify(moviesProjectReservations));
-    messages = JSON.parse(JSON.stringify(moviesProjectMessages));
-    plans = JSON.parse(JSON.stringify(moviesProjectPlans));
-    budget = JSON.parse(JSON.stringify(moviesProjectBudget));
-    problems = JSON.parse(JSON.stringify(moviesProjectProblems));
-    events = JSON.parse(JSON.stringify(moviesProjectEvents));
-  } else {
-    activeProject = 'default';
-    lanes = JSON.parse(JSON.stringify(initialLanes));
-    issues = JSON.parse(JSON.stringify(initialIssues));
-    reservations = JSON.parse(JSON.stringify(initialReservations));
-    messages = JSON.parse(JSON.stringify(initialMessages));
-    plans = JSON.parse(JSON.stringify(initialPlans));
-    budget = JSON.parse(JSON.stringify(initialBudget));
-    problems = JSON.parse(JSON.stringify(initialProblems));
-    events = JSON.parse(JSON.stringify(initialEvents));
+  const target = project === 'movies_projects' ? 'movies_projects' : 'default';
+  try { persistState(activeProject, currentSnapshot()); } catch (err: any) {
+    console.error(`[persistence] save failed: ${err.message || err}`);
+    return res.status(500).json({ error: `Persistence failed: ${err.message || err}` });
   }
+  const loadedTarget = loadProjectState(target);
+  if (loadedTarget) applySnapshot(loadedTarget); else applySnapshot(seedSnapshotFor(target));
+  activeProject = target;
+  if (!persistOr500(res)) return;
   res.json({
     activeProject,
     targetRepo: activeProject === 'movies_projects' ? 'andreathar/Movies_Projects' : 'sandbox',
@@ -278,6 +306,7 @@ app.post('/api/projects/movies/sync', async (req: Request, res: Response) => {
     detail: `Synchronized workspace & pulled remote state: ${commitDetail}`,
   });
 
+  if (!persistOr500(res)) return;
   res.json({
     success: true,
     repo: 'andreathar/Movies_Projects',
@@ -302,6 +331,7 @@ app.post('/api/git/pull', (req: Request, res: Response) => {
       lane: 'git-sync',
       detail: `Git pull executed: ${gitLogOut}`,
     });
+    persistOrThrow();
     res.json({
       success: true,
       output: gitPullOut,
@@ -355,6 +385,7 @@ app.post('/api/lanes', (req: Request, res: Response) => {
     lane: id,
     detail: `Spawned and initialized lane with provider ${provider}`,
   });
+  if (!persistOr500(res)) return;
   res.status(201).json(newLane);
 });
 
@@ -372,6 +403,7 @@ app.post('/api/lanes/:id/wake', (req: Request, res: Response) => {
     lane: lane.id,
     detail: 'Woken by operator signal',
   });
+  if (!persistOr500(res)) return;
   res.json(lane);
 });
 
@@ -388,6 +420,7 @@ app.post('/api/lanes/:id/stop', (req: Request, res: Response) => {
     lane: lane.id,
     detail: 'Lane stopped and retired',
   });
+  if (!persistOr500(res)) return;
   res.json(lane);
 });
 
@@ -423,6 +456,7 @@ app.post('/api/issues', (req: Request, res: Response) => {
     lane: assignee || 'unassigned',
     detail: `Created issue ${id}: ${title}`,
   });
+  if (!persistOr500(res)) return;
   res.status(201).json(newIssue);
 });
 
@@ -453,6 +487,7 @@ app.post('/api/issues/:id/claim', (req: Request, res: Response) => {
     lane: laneId,
     detail: `Atomic claim acquired on ${issue.id}`,
   });
+  if (!persistOr500(res)) return;
   res.json(issue);
 });
 
@@ -463,6 +498,7 @@ app.post('/api/issues/:id/status', (req: Request, res: Response) => {
   if (!status) return res.status(400).json({ error: 'Status required' });
   issue.status = status;
   issue.updatedAt = new Date().toISOString().replace('T', ' ').slice(0, 19);
+  if (!persistOr500(res)) return;
   res.json(issue);
 });
 
@@ -504,6 +540,7 @@ app.post('/api/reservations', (req: Request, res: Response) => {
     lane: owner,
     detail: `Filed reservation on ${resPath}`,
   });
+  if (!persistOr500(res)) return;
   res.status(201).json(newRes);
 });
 
@@ -522,6 +559,7 @@ app.delete('/api/reservations/:id', (req: Request, res: Response) => {
     lane: removed.owner,
     detail: `Released reservation on ${removed.path}`,
   });
+  if (!persistOr500(res)) return;
   res.json({ message: 'Reservation released', reservation: removed });
 });
 
@@ -567,6 +605,7 @@ app.post('/api/messages', (req: Request, res: Response) => {
     detail: `Dispatched message to ${newMsg.to.join(', ')}: ${subject}`,
   });
 
+  if (!persistOr500(res)) return;
   res.status(201).json(newMsg);
 });
 
@@ -582,6 +621,7 @@ app.post('/api/messages/:id/ack', (req: Request, res: Response) => {
       lane.unacknowledgedMail = Math.max(0, lane.unacknowledgedMail - 1);
     }
   });
+  if (!persistOr500(res)) return;
   res.json(msg);
 });
 
@@ -590,6 +630,7 @@ app.post('/api/messages/:id/read', (req: Request, res: Response) => {
   const msg = messages.find((m) => m.id === parseInt(idStr, 10));
   if (!msg) return res.status(404).json({ error: 'Message not found' });
   msg.read = true;
+  if (!persistOr500(res)) return;
   res.json(msg);
 });
 
@@ -617,6 +658,7 @@ app.post('/api/plans', (req: Request, res: Response) => {
     lane: proposer,
     detail: `Proposed revision plan: ${title}`,
   });
+  if (!persistOr500(res)) return;
   res.status(201).json(newPlan);
 });
 
@@ -631,6 +673,7 @@ app.post('/api/plans/:id/approve', (req: Request, res: Response) => {
     lane: 'operator',
     detail: `Approved plan ${plan.id} for ${plan.proposer}`,
   });
+  if (!persistOr500(res)) return;
   res.json(plan);
 });
 
@@ -645,6 +688,7 @@ app.post('/api/plans/:id/reject', (req: Request, res: Response) => {
     lane: 'operator',
     detail: `Rejected plan ${plan.id}`,
   });
+  if (!persistOr500(res)) return;
   res.json(plan);
 });
 
@@ -654,6 +698,7 @@ app.get('/api/budget', (req: Request, res: Response) => {
 
 app.post('/api/budget/toggle', (req: Request, res: Response) => {
   budget.enforced = !budget.enforced;
+  if (!persistOr500(res)) return;
   res.json(budget);
 });
 
@@ -662,6 +707,7 @@ app.post('/api/budget/update', (req: Request, res: Response) => {
   if (tokenCap) budget.tokenCap = Number(tokenCap);
   if (callsCap) budget.callsCap = Number(callsCap);
   if (hoursCap) budget.hoursCap = Number(hoursCap);
+  if (!persistOr500(res)) return;
   res.json(budget);
 });
 
@@ -671,6 +717,7 @@ app.get('/api/problems', (req: Request, res: Response) => {
 
 app.delete('/api/problems/:id', (req: Request, res: Response) => {
   problems = problems.filter((p) => p.id !== req.params.id);
+  if (!persistOr500(res)) return;
   res.json({ message: 'Problem dismissed' });
 });
 
@@ -1124,6 +1171,7 @@ async function handleMcpToolExecution(name: string, args: any) {
       lane: newMsg.from,
       detail: `MCP: dispatched message to ${newMsg.to.join(', ')}: ${newMsg.subject}`,
     });
+    persistOrThrow();
     return {
       content: [{ type: 'text', text: JSON.stringify({ status: 'sent', message_id: newMsg.id, subject: newMsg.subject }) }],
     };
@@ -1170,6 +1218,7 @@ async function handleMcpToolExecution(name: string, args: any) {
       detail: `MCP: filed ${granted.length} leases, ${conflicts.length} conflicts`,
     });
 
+    persistOrThrow();
     return {
       content: [{ type: 'text', text: JSON.stringify({ granted, conflicts }) }],
     };
@@ -1186,6 +1235,7 @@ async function handleMcpToolExecution(name: string, args: any) {
         releasedCount++;
       }
     });
+    persistOrThrow();
     return {
       content: [{ type: 'text', text: JSON.stringify({ releasedCount, remainingReservations: reservations.length }) }],
     };
@@ -1205,6 +1255,7 @@ async function handleMcpToolExecution(name: string, args: any) {
     if (!lane.ownedIssues.includes(issue.id)) {
       lane.ownedIssues.push(issue.id);
     }
+    persistOrThrow();
     return {
       content: [{ type: 'text', text: JSON.stringify({ status: 'claimed', issueId: issue.id, assignee: lane.id }) }],
     };
@@ -1449,6 +1500,7 @@ app.post('/api/kling/save-to-registry', (req: Request, res: Response) => {
     timestamp: new Date().toISOString().replace('T', ' ').slice(0, 19),
   });
 
+  if (!persistOr500(res)) return;
   res.json({
     status: 'registered',
     assetId,

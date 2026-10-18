@@ -10,4 +10,6 @@ graphify-out/
 .env.local
 .env.*.local
 node_modules/
+.movies-local/
 .DS_Store
+data/

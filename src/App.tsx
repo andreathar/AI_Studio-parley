@@ -70,6 +70,7 @@ export const App: React.FC = () => {
   const [isBudgetModalOpen, setIsBudgetModalOpen] = useState(false);
   const [isConfigModalOpen, setIsConfigModalOpen] = useState(false);
   const [composeTargetLane, setComposeTargetLane] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   // Compute live summary
   const summary: TopSummary = {
@@ -223,12 +224,23 @@ export const App: React.FC = () => {
 
   const handleClaimIssue = async (issueId: string, laneId: string) => {
     try {
-      await fetch(`/api/issues/${issueId}/claim`, {
+      const res = await fetch(`/api/issues/${encodeURIComponent(issueId)}/claim`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ laneId }),
       });
-    } catch {}
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        setActionError(
+          `Não foi possível atribuir ${issueId} à lane ${laneId}: ${data?.error ?? `erro HTTP ${res.status}`}`
+        );
+        return;
+      }
+    } catch {
+      setActionError(`Não foi possível atribuir ${issueId} à lane ${laneId}: sem resposta do servidor.`);
+      return;
+    }
+    setActionError(null);
 
     setIssues((prev) =>
       prev.map((i) =>
@@ -257,12 +269,23 @@ export const App: React.FC = () => {
 
   const handleUpdateIssueStatus = async (issueId: string, status: Issue['status']) => {
     try {
-      await fetch(`/api/issues/${issueId}/status`, {
+      const res = await fetch(`/api/issues/${encodeURIComponent(issueId)}/status`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status }),
       });
-    } catch {}
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        setActionError(
+          `Não foi possível atualizar ${issueId}: ${data?.error ?? `erro HTTP ${res.status}`}`
+        );
+        return;
+      }
+    } catch {
+      setActionError(`Não foi possível atualizar ${issueId}: sem resposta do servidor.`);
+      return;
+    }
+    setActionError(null);
 
     setIssues((prev) =>
       prev.map((i) => (i.id === issueId ? { ...i, status } : i))
@@ -540,6 +563,18 @@ export const App: React.FC = () => {
       />
 
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        {actionError && (
+          <div
+            role="alert"
+            className="mb-4 flex items-center justify-between gap-3 rounded-md border border-red-500/30 bg-red-500/20 px-3 py-2 font-mono text-xs text-red-400"
+          >
+            <span>{actionError}</span>
+            <button type="button" onClick={() => setActionError(null)} className="font-semibold">
+              Fechar
+            </button>
+          </div>
+        )}
+
         {activeTab === 'top' && (
           <TopStatusView
             summary={summary}
