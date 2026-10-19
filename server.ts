@@ -2,6 +2,7 @@ import express, { Request, Response } from 'express';
 import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { createHash, timingSafeEqual } from 'node:crypto';
 
 function refuseObserverProfile(): void {
   if (process.env.MOVIES_OBSERVER_ONLY === '1') {
@@ -15,11 +16,63 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
-const HOST = process.env.HOST || '0.0.0.0';
+const HOST = process.env.HOST || '127.0.0.1'; // D6: local default loopback; published env sets HOST explicitly
 
-app.use(cors());
+const DEFAULT_CORS_ORIGINS = ['http://127.0.0.1:3000', 'http://localhost:3000'];
+function allowedCorsOrigins(): string[] {
+  const extra = (process.env.AGENT_PARLEY_CORS_ORIGINS || '').split(',').map((v) => v.trim()).filter(Boolean);
+  return [...DEFAULT_CORS_ORIGINS, ...extra];
+}
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin || allowedCorsOrigins().includes(origin)) callback(null, true);
+    else callback(null, false);
+  },
+  methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+}));
 app.use(express.json({ limit: '25mb' }));
 app.use(express.urlencoded({ extended: true, limit: '25mb' }));
+
+const MCP_READ_TOOLS = new Set(['fetch_inbox', 'get_coordination_status']);
+const MCP_PUBLIC_METHODS = new Set(['initialize', 'notifications/initialized', 'ping', 'tools/list']);
+const MCP_PATHS = new Set(['/api/mcp', '/api/mcp/message', '/mcp', '/api/mcp/tools/call']);
+function isMcpPublicRead(req: Request): boolean {
+  if (!MCP_PATHS.has(req.path)) return false;
+  const body: any = req.body || {};
+  if (req.path === '/api/mcp/tools/call') return MCP_READ_TOOLS.has(body.name);
+  if (MCP_PUBLIC_METHODS.has(body.method)) return true;
+  if (body.method === 'tools/call') return MCP_READ_TOOLS.has(body.params?.name);
+  if (!body.method && body.name) return MCP_READ_TOOLS.has(body.name);
+  return false;
+}
+function bearerMatches(req: Request): boolean {
+  const expected = process.env.MCP_SHARED_SECRET || '';
+  const header = req.headers.authorization || '';
+  if (!expected || !header.startsWith('Bearer ')) return false;
+  const presented = header.slice(7);
+  const a = createHash('sha256').update(presented).digest();
+  const b = createHash('sha256').update(expected).digest();
+  return timingSafeEqual(a, b);
+}
+function requireWriteAuth(req: Request, res: Response, next: () => void) {
+  const isDiagnosticsRead = req.method === 'GET' && req.path === '/api/diagnostics';
+  const isWrite = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method);
+  if (!isDiagnosticsRead && !isWrite) return next();
+  if (isWrite && isMcpPublicRead(req)) return next();
+  if (!process.env.MCP_SHARED_SECRET) {
+    console.error('[auth] write auth not configured: MCP_SHARED_SECRET is not set');
+    return res.status(503).json({ error: 'write auth not configured' });
+  }
+  if (!bearerMatches(req)) {
+    if (MCP_PATHS.has(req.path)) {
+      return res.status(401).json({ jsonrpc: '2.0', id: (req.body as any)?.id ?? null, error: { code: -32001, message: 'unauthorized' } });
+    }
+    return res.status(401).json({ error: 'unauthorized' });
+  }
+  return next();
+}
+app.use(requireWriteAuth);
 
 import fs from 'fs';
 import { execSync } from 'child_process';
@@ -37,7 +90,7 @@ try {
         const k = m[1].trim();
         const v = m[2].trim().replace(/^['"]|['"]$/g, '');
         if (v) {
-          process.env[k] = v;
+          if (!process.env[k]) process.env[k] = v; // injected process env (e.g. test synthetic token) wins over .env file
         }
       }
     }
@@ -729,100 +782,27 @@ app.get('/api/events', (req: Request, res: Response) => {
 app.get('/api/diagnostics', (req: Request, res: Response) => {
   const hostVal = process.env.HOST || '0.0.0.0';
   const portVal = process.env.PORT || '3000';
-  const githubToken = process.env.GITHUB_TOKEN || '';
-  const geminiKey = process.env.GEMINI_API_KEY || '';
-  const mcpSecret = process.env.MCP_SHARED_SECRET || '';
-  const nodeEnv = process.env.NODE_ENV || 'development';
-
-  const isHostValid = hostVal === '0.0.0.0';
+  const isHostValid = hostVal === '0.0.0.0' || hostVal === '127.0.0.1';
   const isPortValid = !isNaN(parseInt(portVal, 10)) && parseInt(portVal, 10) > 0;
-
-  const vars = [
-    {
-      name: 'HOST',
-      category: 'Network',
-      value: hostVal,
-      isSecret: false,
-      isSet: true,
-      status: isHostValid ? 'healthy' : 'warning',
-      expected: '0.0.0.0',
-      description: 'Network IP interface binding. Must be 0.0.0.0 so the container proxy routes preview traffic.',
-      notes: isHostValid ? 'Correctly bound to 0.0.0.0' : 'Warning: Bound to a specific IP, may block external proxy traffic',
-    },
-    {
-      name: 'PORT',
-      category: 'Network',
-      value: portVal,
-      isSecret: false,
-      isSet: true,
-      status: portVal === '3000' ? 'healthy' : isPortValid ? 'healthy' : 'error',
-      expected: '3000',
-      description: 'TCP port for the Node.js dev and API server.',
-      notes: portVal === '3000' ? 'Standard preview port 3000' : `Custom port ${portVal}`,
-    },
-    {
-      name: 'NODE_ENV',
-      category: 'Runtime',
-      value: nodeEnv,
-      isSecret: false,
-      isSet: true,
-      status: 'healthy',
-      expected: 'development | production',
-      description: 'Execution mode for Node.js and Vite.',
-      notes: `Running in ${nodeEnv} mode`,
-    },
-    {
-      name: 'GITHUB_TOKEN',
-      category: 'Integrations',
-      value: githubToken ? `${githubToken.slice(0, 4)}...${githubToken.slice(-4)}` : null,
-      isSecret: true,
-      isSet: Boolean(githubToken),
-      status: githubToken ? 'healthy' : 'optional_missing',
-      expected: 'ghp_... or github_pat_...',
-      description: 'GitHub Personal Access Token for synchronizing remote pull request status and issues.',
-      notes: githubToken ? `Configured (length: ${githubToken.length} chars)` : 'Optional: Set if coordinating with remote GitHub repos',
-    },
-    {
-      name: 'GEMINI_API_KEY',
-      category: 'Integrations',
-      value: geminiKey ? `AIza...${geminiKey.slice(-4)}` : null,
-      isSecret: true,
-      isSet: Boolean(geminiKey),
-      status: geminiKey ? 'healthy' : 'optional_missing',
-      expected: 'AIzaSy...',
-      description: 'Server-side API key for Google Gemini model integration.',
-      notes: geminiKey ? `Configured (length: ${geminiKey.length} chars)` : 'Optional: Set if utilizing server-side Gemini features',
-    },
-    {
-      name: 'ANTHROPIC_API_KEY',
-      category: 'Integrations',
-      value: process.env.ANTHROPIC_API_KEY ? `sk-ant...${process.env.ANTHROPIC_API_KEY.slice(-4)}` : null,
-      isSecret: true,
-      isSet: Boolean(process.env.ANTHROPIC_API_KEY),
-      status: process.env.ANTHROPIC_API_KEY ? 'healthy' : 'optional_missing',
-      expected: 'sk-ant-...',
-      description: 'Anthropic API key for driving Claude Code CLI or Claude agent lanes.',
-      notes: process.env.ANTHROPIC_API_KEY ? `Configured (length: ${process.env.ANTHROPIC_API_KEY.length} chars)` : 'Optional: Used when running Claude Code lanes',
-    },
-    {
-      name: 'MCP_SHARED_SECRET',
-      category: 'Security',
-      value: mcpSecret ? `••••••••${mcpSecret.slice(-4)}` : null,
-      isSecret: true,
-      isSet: Boolean(mcpSecret),
-      status: mcpSecret ? 'healthy' : 'optional_missing',
-      expected: '32+ character random string',
-      description: 'HMAC signature token for loopback MCP hook authentication and webhook validation.',
-      notes: mcpSecret ? `Configured (length: ${mcpSecret.length} chars)` : 'Optional: Local sandbox runs in open loopback mode',
-    },
+  const varStatus = (name: string, isSet: boolean, healthyWhenSet = true) => ({
+    name,
+    isSet,
+    status: isSet ? (healthyWhenSet ? 'healthy' : 'warning') : 'optional_missing',
+  });
+  const variables = [
+    { name: 'HOST', isSet: true, status: isHostValid ? 'healthy' : 'warning' },
+    { name: 'PORT', isSet: true, status: isPortValid ? 'healthy' : 'error' },
+    { name: 'NODE_ENV', isSet: Boolean(process.env.NODE_ENV), status: 'healthy' },
+    varStatus('GITHUB_TOKEN', Boolean(process.env.GITHUB_TOKEN)),
+    varStatus('GEMINI_API_KEY', Boolean(process.env.GEMINI_API_KEY)),
+    varStatus('ANTHROPIC_API_KEY', Boolean(process.env.ANTHROPIC_API_KEY)),
+    varStatus('MCP_SHARED_SECRET', Boolean(process.env.MCP_SHARED_SECRET)),
   ];
-
   const mem = process.memoryUsage();
-
   res.json({
     status: isHostValid && isPortValid ? 'healthy' : 'degraded',
     timestamp: new Date().toISOString(),
-    variables: vars,
+    variables,
     system: {
       nodeVersion: process.version,
       platform: process.platform,
@@ -1305,16 +1285,7 @@ async function handleMcpJsonRpc(req: Request, res: Response) {
   const body = req.body || {};
   const { jsonrpc, id, method, params } = body;
 
-  // Optional Auth check: if client sent Authorization Bearer, verify match if set
-  const authHeader = req.headers.authorization;
-  if (authHeader && authHeader.startsWith('Bearer ')) {
-    const token = authHeader.slice(7).trim();
-    const expected = process.env.MCP_SHARED_SECRET;
-    if (expected && token !== expected) {
-      console.warn(`[MCP] Warning: Bearer token mismatch (${token.slice(0, 6)}... vs expected)`);
-    }
-  }
-
+  // Write auth for mutating tools is enforced by requireWriteAuth middleware.
   // 1. Handshake / Initialize
   if (method === 'initialize') {
     return res.json({

@@ -1,6 +1,6 @@
 {
   "name": "agent-parley",
-  "version": "0.18.0",
+  "version": "0.18.2",
   "private": true,
   "type": "module",
   "scripts": {
@@ -13,27 +13,28 @@
     "local:stop": "python3 -B -m scripts.movies_local stop",
     "local:serve": "python3 -B -m scripts.movies_local serve",
     "test:observer": "node --import tsx tests/movies-observer.test.mjs && node tests/online-movies.test.mjs && node --import tsx tests/observer-entry.test.mjs && python3 -B -m unittest discover -s tests -p test_movies_publish.py",
-    "test:persistence": "node --import tsx tests/persistence.test.mjs"
+    "test:persistence": "node --import tsx tests/persistence.test.mjs",
+    "test:security": "node tests/security.test.mjs"
   },
   "dependencies": {
-    "@google/genai": "^2.29.1",
-    "cors": "^2.8.5",
-    "express": "^4.21.2",
-    "lucide-react": "^1.16.0",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "tsx": "^4.19.2"
+    "@google/genai": "^2.30.0",
+    "cors": "^2.8.6",
+    "express": "^5.3.0",
+    "lucide-react": "^1.59.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "tsx": "^4.23.15"
   },
   "devDependencies": {
-    "@tailwindcss/vite": "^4.0.0",
-    "@types/cors": "^2.8.17",
-    "@types/express": "^5.0.0",
-    "@types/node": "^22.0.0",
-    "@types/react": "^18.3.12",
-    "@types/react-dom": "^18.3.1",
-    "@vitejs/plugin-react": "^4.3.4",
-    "tailwindcss": "^4.0.0",
-    "typescript": "^5.6.3",
-    "vite": "^6.0.7"
+    "@tailwindcss/vite": "^4.3.3",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/node": "^26.6.5",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.2",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^7.1.0-dev.20261018.1",
+    "vite": "^8.3.4"
   }
 }

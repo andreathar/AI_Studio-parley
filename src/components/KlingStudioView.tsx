@@ -1,3 +1,4 @@
+import { apiFetch } from '../lib/api';
 import React, { useState } from 'react';
 import { 
   Sparkles, 
@@ -105,7 +106,7 @@ export const KlingStudioView: React.FC<KlingStudioViewProps> = ({
     setIsEnhancing(true);
     setSavedSuccess(false);
     try {
-      const res = await fetch('/api/kling/enhance-prompt', {
+      const res = await apiFetch('/api/kling/enhance-prompt', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -144,7 +145,7 @@ export const KlingStudioView: React.FC<KlingStudioViewProps> = ({
         imageBase64 = sample?.url || '';
       }
 
-      const res = await fetch('/api/kling/vision-critique', {
+      const res = await apiFetch('/api/kling/vision-critique', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -188,7 +189,7 @@ export const KlingStudioView: React.FC<KlingStudioViewProps> = ({
         tags = promptResult.namingPattern.tags;
       }
 
-      const res = await fetch('/api/kling/save-to-registry', {
+      const res = await apiFetch('/api/kling/save-to-registry', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

@@ -1,3 +1,4 @@
+import { apiFetch } from '../lib/api';
 import React, { useState, useEffect } from 'react';
 import { DiagnosticsData, EnvVariable } from '../types';
 import { 
@@ -38,9 +39,10 @@ export const DiagnosticsView: React.FC<DiagnosticsViewProps> = ({ onOpenConfigMo
     setError(null);
     try {
       const start = performance.now();
-      const res = await fetch('/api/diagnostics');
+      const res = await apiFetch('/api/diagnostics');
       const end = performance.now();
       setProbeLatency(Math.round(end - start));
+      if (res.status === 401) throw new Error('Diagnostics requer acesso: desbloqueie a escrita para visualizar.');
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json();
       setData(json);
@@ -55,7 +57,7 @@ export const DiagnosticsView: React.FC<DiagnosticsViewProps> = ({ onOpenConfigMo
     setProbing(true);
     try {
       const start = performance.now();
-      const res = await fetch('/api/diagnostics');
+      const res = await apiFetch('/api/diagnostics');
       const end = performance.now();
       setProbeLatency(Math.round(end - start));
       if (res.ok) {
@@ -78,7 +80,7 @@ export const DiagnosticsView: React.FC<DiagnosticsViewProps> = ({ onOpenConfigMo
 
   const filteredVars = (data?.variables || []).filter((v) => {
     if (selectedCategory === 'all') return true;
-    return v.category.toLowerCase() === selectedCategory.toLowerCase();
+    return (v.category || '').toLowerCase() === selectedCategory.toLowerCase();
   });
 
   const getStatusBadge = (variable: EnvVariable) => {
@@ -304,7 +306,7 @@ export const DiagnosticsView: React.FC<DiagnosticsViewProps> = ({ onOpenConfigMo
                   </td>
                   <td className="py-3.5 px-3">
                     <span className="px-2 py-0.5 rounded text-[10px] bg-[#21262d] text-[#8b949e] border border-[#30363d] uppercase">
-                      {v.category}
+                      {v.category || '—'}
                     </span>
                   </td>
                   <td className="py-3.5 px-3">
@@ -334,15 +336,15 @@ export const DiagnosticsView: React.FC<DiagnosticsViewProps> = ({ onOpenConfigMo
                   </td>
                   <td className="py-3.5 px-4 max-w-sm">
                     <div className="text-[#e6edf3] text-[11px] font-medium mb-0.5">
-                      {v.description}
+                      {v.description || ''}
                     </div>
                     <div className="text-[#8b949e] text-[10px]">
-                      Expected: <code>{v.expected}</code>
+                      {v.expected ? <>Expected: <code>{v.expected}</code></> : null}
                     </div>
                   </td>
                   <td className="py-3.5 px-4 text-[#8b949e] text-[11px]">
                     <span className={v.status === 'healthy' ? 'text-emerald-300' : v.status === 'warning' ? 'text-amber-300' : 'text-[#8b949e]'}>
-                      {v.notes}
+                      {v.notes || v.status}
                     </span>
                   </td>
                 </tr>

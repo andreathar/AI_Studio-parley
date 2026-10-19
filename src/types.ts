@@ -121,14 +121,14 @@ export interface TopSummary {
 
 export interface EnvVariable {
   name: string;
-  category: 'Network' | 'Runtime' | 'Integrations' | 'Security';
-  value: string | null;
-  isSecret: boolean;
+  category?: 'Network' | 'Runtime' | 'Integrations' | 'Security';
+  value?: string | null;
+  isSecret?: boolean;
   isSet: boolean;
   status: 'healthy' | 'warning' | 'error' | 'optional_missing';
-  expected: string;
-  description: string;
-  notes: string;
+  expected?: string;
+  description?: string;
+  notes?: string;
 }
 
 export interface DiagnosticsData {

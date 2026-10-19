@@ -13,6 +13,7 @@ import subprocess
 import sys
 import time
 from collections.abc import Callable
+from typing import cast
 
 from scripts import movies_preview, movies_publish, movies_snapshot
 
@@ -110,7 +111,7 @@ class LocalServer(http.server.HTTPServer):
         return connection, address
 
     def handle_error(
-        self, request: socket.socket, client_address: tuple
+        self, request: socket.socket | tuple[bytes, socket.socket], client_address: tuple
     ) -> None:
         """Keep source paths and request content out of the local log."""
         sys.stderr.write("Local request failed.\n")
@@ -124,7 +125,8 @@ class LocalHandler(http.server.BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:
         """Validate locality before triggering any canonical or CLI reading."""
-        authority = f"127.0.0.1:{self.server.server_port}"
+        server = cast(LocalServer, self.server)
+        authority = f"127.0.0.1:{server.server_port}"
         origin = f"http://{authority}"
         document = (
             self.path == "/"
@@ -160,7 +162,7 @@ class LocalHandler(http.server.BaseHTTPRequestHandler):
             try:
                 mime, body = (
                     "application/json",
-                    json.dumps(self.server.cache.read()).encode(),
+                    json.dumps(server.cache.read()).encode(),
                 )
             except Exception:
                 self.send_response(503)
@@ -168,8 +170,8 @@ class LocalHandler(http.server.BaseHTTPRequestHandler):
                 self.end_headers()
                 self.wfile.write(b'{"state":"local_read_unavailable"}')
                 return
-        elif self.path in self.server.assets:
-            mime, body = self.server.assets[self.path]
+        elif self.path in server.assets:
+            mime, body = server.assets[self.path]
         else:
             self.send_error(404)
             return
@@ -343,6 +345,7 @@ def main() -> int:
                         {
                             "running": live,
                             "ready": live
+                            and record is not None
                             and ready(record["port"], record["pid"]),
                             "url": f"http://127.0.0.1:{record['port']}/"
                             if live
@@ -352,7 +355,7 @@ def main() -> int:
                 )
                 return 0
             if args.action == "stop":
-                if not live:
+                if not live or record is None:
                     print('{"running":false,"stopped":false}')
                     return 0
                 os.killpg(record["pid"], signal.SIGTERM)
@@ -363,7 +366,7 @@ def main() -> int:
                         return 0
                     time.sleep(0.05)
                 raise ValueError
-            if live:
+            if live and record is not None:
                 if (
                     record.get("moviesRoot") != str(movies)
                     or record.get("stateHome") != str(home)

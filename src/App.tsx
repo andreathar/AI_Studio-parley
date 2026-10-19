@@ -1,3 +1,4 @@
+import { apiFetch, hasWriteToken, setWriteToken, clearWriteToken } from './lib/api';
 import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Lane, 
@@ -71,6 +72,13 @@ export const App: React.FC = () => {
   const [isConfigModalOpen, setIsConfigModalOpen] = useState(false);
   const [composeTargetLane, setComposeTargetLane] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [writeUnlocked, setWriteUnlocked] = useState<boolean>(hasWriteToken());
+  const [writeTokenInput, setWriteTokenInput] = useState('');
+  useEffect(() => {
+    const onUnauthorized = () => { setWriteUnlocked(false); setActionError('Acesso de escrita não autorizado (401). Desbloqueie com a credencial para escrever.'); };
+    window.addEventListener('agent-parley:unauthorized', onUnauthorized);
+    return () => window.removeEventListener('agent-parley:unauthorized', onUnauthorized);
+  }, []);
 
   // Compute live summary
   const summary: TopSummary = {
@@ -90,7 +98,7 @@ export const App: React.FC = () => {
   // Sync state with backend
   const fetchStatus = useCallback(async () => {
     try {
-      const res = await fetch('/api/status');
+      const res = await apiFetch('/api/status');
       if (res.ok) {
         const data = await res.json();
         if (data.lanes) setLanes(data.lanes);
@@ -107,7 +115,7 @@ export const App: React.FC = () => {
 
   const fetchMessages = useCallback(async () => {
     try {
-      const res = await fetch('/api/messages');
+      const res = await apiFetch('/api/messages');
       if (res.ok) {
         const data = await res.json();
         setMessages(data);
@@ -117,7 +125,7 @@ export const App: React.FC = () => {
 
   const fetchPlans = useCallback(async () => {
     try {
-      const res = await fetch('/api/plans');
+      const res = await apiFetch('/api/plans');
       if (res.ok) {
         const data = await res.json();
         setPlans(data);
@@ -136,7 +144,7 @@ export const App: React.FC = () => {
   // Actions
   const handleWakeLane = async (id: string) => {
     try {
-      await fetch(`/api/lanes/${id}/wake`, { method: 'POST' });
+      await apiFetch(`/api/lanes/${id}/wake`, { method: 'POST' });
     } catch {}
     setLanes((prev) =>
       prev.map((l) =>
@@ -157,7 +165,7 @@ export const App: React.FC = () => {
 
   const handleStopLane = async (id: string) => {
     try {
-      await fetch(`/api/lanes/${id}/stop`, { method: 'POST' });
+      await apiFetch(`/api/lanes/${id}/stop`, { method: 'POST' });
     } catch {}
     setLanes((prev) =>
       prev.map((l) =>
@@ -202,7 +210,7 @@ export const App: React.FC = () => {
     };
 
     try {
-      await fetch('/api/lanes', {
+      await apiFetch('/api/lanes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, provider, branch }),
@@ -224,7 +232,7 @@ export const App: React.FC = () => {
 
   const handleClaimIssue = async (issueId: string, laneId: string) => {
     try {
-      const res = await fetch(`/api/issues/${encodeURIComponent(issueId)}/claim`, {
+      const res = await apiFetch(`/api/issues/${encodeURIComponent(issueId)}/claim`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ laneId }),
@@ -269,7 +277,7 @@ export const App: React.FC = () => {
 
   const handleUpdateIssueStatus = async (issueId: string, status: Issue['status']) => {
     try {
-      const res = await fetch(`/api/issues/${encodeURIComponent(issueId)}/status`, {
+      const res = await apiFetch(`/api/issues/${encodeURIComponent(issueId)}/status`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status }),
@@ -306,7 +314,7 @@ export const App: React.FC = () => {
     };
 
     try {
-      await fetch('/api/issues', {
+      await apiFetch('/api/issues', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title, priority, assignee }),
@@ -332,7 +340,7 @@ export const App: React.FC = () => {
     ttlSeconds: number
   ): Promise<{ success: boolean; error?: string }> => {
     try {
-      const res = await fetch('/api/reservations', {
+      const res = await apiFetch('/api/reservations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ path, owner, reason, ttlSeconds }),
@@ -368,7 +376,7 @@ export const App: React.FC = () => {
   const handleReleaseReservation = async (id: string) => {
     const res = reservations.find((r) => r.id === id);
     try {
-      await fetch(`/api/reservations/${id}`, { method: 'DELETE' });
+      await apiFetch(`/api/reservations/${id}`, { method: 'DELETE' });
     } catch {}
     setReservations((prev) => prev.filter((r) => r.id !== id));
     if (res) {
@@ -388,7 +396,7 @@ export const App: React.FC = () => {
     ackRequired: boolean
   ) => {
     try {
-      const res = await fetch('/api/messages', {
+      const res = await apiFetch('/api/messages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ from, to, subject, body, ackRequired }),
@@ -415,7 +423,7 @@ export const App: React.FC = () => {
 
   const handleAcknowledgeMessage = async (id: number) => {
     try {
-      await fetch(`/api/messages/${id}/ack`, { method: 'POST' });
+      await apiFetch(`/api/messages/${id}/ack`, { method: 'POST' });
     } catch {}
     setMessages((prev) =>
       prev.map((m) => (m.id === id ? { ...m, acknowledged: true } : m))
@@ -426,7 +434,7 @@ export const App: React.FC = () => {
 
   const handleApprovePlan = async (id: string) => {
     try {
-      await fetch(`/api/plans/${id}/approve`, { method: 'POST' });
+      await apiFetch(`/api/plans/${id}/approve`, { method: 'POST' });
     } catch {}
     setPlans((prev) =>
       prev.map((p) => (p.id === id ? { ...p, status: 'approved' } : p))
@@ -435,7 +443,7 @@ export const App: React.FC = () => {
 
   const handleRejectPlan = async (id: string) => {
     try {
-      await fetch(`/api/plans/${id}/reject`, { method: 'POST' });
+      await apiFetch(`/api/plans/${id}/reject`, { method: 'POST' });
     } catch {}
     setPlans((prev) =>
       prev.map((p) => (p.id === id ? { ...p, status: 'rejected' } : p))
@@ -444,7 +452,7 @@ export const App: React.FC = () => {
 
   const handleToggleBudgetEnforce = async () => {
     try {
-      const res = await fetch('/api/budget/toggle', { method: 'POST' });
+      const res = await apiFetch('/api/budget/toggle', { method: 'POST' });
       const data = await res.json();
       setBudget(data);
     } catch {
@@ -454,7 +462,7 @@ export const App: React.FC = () => {
 
   const handleUpdateBudget = async (tokenCap: number, callsCap: number, hoursCap: number) => {
     try {
-      const res = await fetch('/api/budget/update', {
+      const res = await apiFetch('/api/budget/update', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tokenCap, callsCap, hoursCap }),
@@ -468,13 +476,13 @@ export const App: React.FC = () => {
 
   const handleDismissProblem = async (id: string) => {
     try {
-      await fetch(`/api/problems/${id}`, { method: 'DELETE' });
+      await apiFetch(`/api/problems/${id}`, { method: 'DELETE' });
     } catch {}
     setProblems((prev) => prev.filter((p) => p.id !== id));
   };
 
   const handleExecuteCommand = async (command: string): Promise<string> => {
-    const res = await fetch('/api/cli', {
+    const res = await apiFetch('/api/cli', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ command }),
@@ -516,7 +524,7 @@ export const App: React.FC = () => {
       setEvents(initialEvents);
     }
     try {
-      await fetch('/api/projects/switch', {
+      await apiFetch('/api/projects/switch', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ project: targetProj }),
@@ -527,7 +535,7 @@ export const App: React.FC = () => {
   const handleSyncRepo = async () => {
     setIsSyncing(true);
     try {
-      const res = await fetch('/api/projects/movies/sync', { method: 'POST' });
+      const res = await apiFetch('/api/projects/movies/sync', { method: 'POST' });
       if (res.ok) {
         setLastSyncTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
         fetchStatus();
@@ -563,6 +571,20 @@ export const App: React.FC = () => {
       />
 
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <div className="mb-4 flex flex-wrap items-center gap-2 rounded-md border border-[#30363d] bg-[#161b22] px-3 py-2 font-mono text-xs">
+          {writeUnlocked ? (
+            <>
+              <span className="text-emerald-400">Escrita desbloqueada nesta sessão</span>
+              <button type="button" className="text-[#8b949e] underline" onClick={() => { clearWriteToken(); setWriteUnlocked(false); }}>Bloquear</button>
+            </>
+          ) : (
+            <>
+              <span className="text-[#8b949e]">Leituras públicas; escrita requer credencial:</span>
+              <input type="password" value={writeTokenInput} onChange={(e) => setWriteTokenInput(e.target.value)} placeholder="Credencial de escrita" className="rounded border border-[#30363d] bg-[#0d1117] px-2 py-1 text-[#e6edf3]" />
+              <button type="button" className="font-semibold text-[#58a6ff]" onClick={() => { if (writeTokenInput.trim()) { setWriteToken(writeTokenInput.trim()); setWriteTokenInput(''); setWriteUnlocked(true); setActionError(null); } }}>Desbloquear escrita</button>
+            </>
+          )}
+        </div>
         {actionError && (
           <div
             role="alert"
@@ -651,14 +673,14 @@ export const App: React.FC = () => {
         {activeTab === 'kling_studio' && (
           <KlingStudioView
             onSaveToRegistry={(data) => {
-              fetch('/api/kling/save-to-registry', {
+              apiFetch('/api/kling/save-to-registry', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(data),
               });
             }}
             onDispatchTask={(task) => {
-              fetch('/api/lanes/spawn', {
+              apiFetch('/api/lanes/spawn', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({

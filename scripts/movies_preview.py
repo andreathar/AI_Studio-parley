@@ -10,6 +10,7 @@ import json
 import pathlib
 import socket
 import time
+from typing import cast
 
 from scripts import movies_snapshot
 
@@ -111,7 +112,8 @@ class PreviewHandler(http.server.BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:
         """Serve one exact path after same-origin and loopback checks."""
-        authority = f"127.0.0.1:{self.server.server_port}"
+        server = cast(PreviewServer, self.server)
+        authority = f"127.0.0.1:{server.server_port}"
         origin = f"http://{authority}"
         document_navigation = (
             self.path in ("/", "/?movies-local&preview-snapshot")
@@ -131,7 +133,7 @@ class PreviewHandler(http.server.BaseHTTPRequestHandler):
         ):
             self.send_error(403)
             return
-        asset = self.server.assets.get(self.path)
+        asset = server.assets.get(self.path)
         if asset is None:
             self.send_error(404)
             return

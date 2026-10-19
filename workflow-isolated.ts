@@ -1,5 +1,5 @@
 /** Explicit isolated entry only; never loads the legacy app or environment files. */
-import { pathToFileURL } from 'node:url';
+import process from 'node:process';
 import { startIsolatedWorkflow } from './src/workflow/isolatedServer';
 export async function isolatedMain(args: string[]): Promise<void> {
     try {
@@ -16,5 +16,5 @@ export async function isolatedMain(args: string[]): Promise<void> {
         process.exitCode = 2;
     }
 }
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href)
+if (process.argv[1] && decodeURIComponent(new URL(import.meta.url).pathname) === process.argv[1])
     void isolatedMain(process.argv.slice(2));

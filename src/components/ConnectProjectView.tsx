@@ -1,3 +1,4 @@
+import { apiFetch } from '../lib/api';
 import React, { useState, useEffect } from 'react';
 import { 
   PlugZap, 
@@ -63,7 +64,7 @@ export const ConnectProjectView: React.FC<ConnectProjectViewProps> = ({ onSelect
 
   const fetchDiagnostics = async () => {
     try {
-      const res = await fetch('/api/diagnostics');
+      const res = await apiFetch('/api/diagnostics');
       if (res.ok) {
         const json = await res.json();
         setEnvData(json);
@@ -74,7 +75,7 @@ export const ConnectProjectView: React.FC<ConnectProjectViewProps> = ({ onSelect
   const checkGitHubStatus = async () => {
     setGithubLoading(true);
     try {
-      const res = await fetch('/api/github/status');
+      const res = await apiFetch('/api/github/status');
       if (res.ok) {
         const data = await res.json();
         setGithubStatus(data);
@@ -89,7 +90,7 @@ export const ConnectProjectView: React.FC<ConnectProjectViewProps> = ({ onSelect
   const testPromptEnhancer = async () => {
     setPromptTestLoading(true);
     try {
-      const res = await fetch('/api/kling/enhance-prompt', {
+      const res = await apiFetch('/api/kling/enhance-prompt', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -114,7 +115,7 @@ export const ConnectProjectView: React.FC<ConnectProjectViewProps> = ({ onSelect
   const testMcpHandshake = async () => {
     setMcpTestLoading(true);
     try {
-      const res = await fetch('/api/mcp/tools/call', {
+      const res = await apiFetch('/api/mcp/tools/call', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

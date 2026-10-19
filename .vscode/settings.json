@@ -1,4 +1,13 @@
 {
   "cloudcode.geminiCodeAssist.enable": true,
-  "geminicodeassist.enable": true
+  "geminicodeassist.enable": true,
+  "sqltools.connections": [
+    {
+      "previewLimit": 50,
+      "driver": "SQLite",
+      "database": "${workspaceFolder:AI_Studio-parley}/data/agent-parley.sqlite3",
+      "name": "Parley_Studio"
+    }
+  ],
+  "sqltools.useNodeRuntime": true
 }

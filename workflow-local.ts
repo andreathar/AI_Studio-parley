@@ -1,5 +1,6 @@
 /** Human-operated local entry; no env credentials, autostart or process replacement. */
 import fs from 'node:fs';
+import process from 'node:process';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { createHash } from 'node:crypto';
