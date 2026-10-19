@@ -34,63 +34,63 @@ defaults:
         Agent Parley runs Claude Code, Codex, Copilot, Gemini, OpenCode and
         Amp in parallel on one repository, each in its own Git worktree.
   - scope:
-      path: docs/lanes.md
+      path: docs/arquivo/cli-python/lanes.md
     values:
       title: Running lanes
       description: >-
         Start, steer, hold, integrate and review parallel coding agent lanes,
         each working in its own Git worktree.
   - scope:
-      path: docs/coordination.md
+      path: docs/arquivo/cli-python/coordination.md
     values:
       title: Coordination
       description: >-
         What Agent Parley enforces between parallel coding agents and what it
         only reports: issue ownership, reservations and handoffs.
   - scope:
-      path: docs/commands.md
+      path: docs/arquivo/cli-python/commands.md
     values:
       title: Commands
       description: >-
         Reference for the agent-parley command line, grouped as coordination,
         policy, observability and lifecycle commands.
   - scope:
-      path: docs/monitoring.md
+      path: docs/arquivo/cli-python/monitoring.md
     values:
       title: Monitoring
       description: >-
         Read-only views of parallel coding agent lanes: status, top,
         problems, doctor, metrics and watch.
   - scope:
-      path: docs/operations.md
+      path: docs/arquivo/cli-python/operations.md
     values:
       title: Operations
       description: >-
         Install, upgrade and operate Agent Parley on Linux, macOS and WSL2: daily
         use, providers, accounts, recovery and plugins.
   - scope:
-      path: docs/providers.md
+      path: docs/arquivo/cli-python/providers.md
     values:
       title: Providers and accounts
       description: >-
         Configure which native coding agent CLI drives each lane and how that
         CLI reaches a model.
   - scope:
-      path: docs/architecture.md
+      path: docs/arquivo/cli-python/architecture.md
     values:
       title: Architecture and contracts
       description: >-
         How Agent Parley coordinates coding agents on one host:
         authentication, persistence, concurrency and platform primitives.
   - scope:
-      path: docs/releases.md
+      path: docs/arquivo/releases.md
     values:
       title: Release operations
       description: >-
         How Agent Parley versions are measured, approved, tagged and
         published.
   - scope:
-      path: docs/acceptance.md
+      path: docs/arquivo/cli-python/acceptance.md
     values:
       title: Unattended acceptance run
       description: >-
@@ -98,28 +98,28 @@ defaults:
         operator and turned into optional evidence about real-client
         behaviour.
   - scope:
-      path: docs/catalog-submission.md
+      path: docs/arquivo/cli-python/catalog-submission.md
     values:
       title: Catalog submission
       description: >-
         Plugin directory submission material for the Agent Parley plugin
         bundle and how to verify each requirement.
   - scope:
-      path: docs/mcp-directories.md
+      path: docs/arquivo/cli-python/mcp-directories.md
     values:
       title: MCP directory listings
       description: >-
         MCP directory manifests for the Agent Parley coordination server,
         how each is validated, and the owner-only submission steps.
   - scope:
-      path: docs/0.11.0-validation.md
+      path: docs/arquivo/0.11.0-validation.md
     values:
       title: 0.11.0 work-loop validation
       description: >-
         Historical 0.11.0 acceptance record for the autonomous work loop, run
         with native Claude and Codex terminals.
   - scope:
-      path: docs/windows-port.md
+      path: docs/arquivo/cli-python/windows-port.md
     values:
       title: Native Windows port
       description: >-
