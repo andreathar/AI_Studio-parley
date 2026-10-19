@@ -1,6 +1,0 @@
-{
-  "summary": "Implementation plan detailing self-hosted deployment architecture, local King.ai media asset storage, how Claude/Codex/OpenCode providers function via MCP and Git worktrees, and adding a dedicated interactive Architecture & Flow Diagram tab to the application.",
-  "updatedAt": "2026-10-13T05:35:57.554892748Z",
-  "requestFeedback": true,
-  "userFacing": true
-}
