@@ -1,24 +1,46 @@
-# agent-parley
+# AGENTS.md — Agent Parley (local app)
 
-Shared operating guidance remains authoritative at `~/.claude/CLAUDE.md`.
+Read this first. `README.md` describes the app; this file says how agents
+work in this repository.
 
-Follow `CONTRIBUTING.md` for Google Python style guidance, the project's explicit
-tooling adaptations, and coordination invariants. New production APIs require
-type annotations and Google-style documentation; Ruff enforces the configured
-rules. Keep the 80-character formatting target and do not weaken checks.
+## Direction (current, supersedes older descriptions)
 
-- Python 3.12+; coordination runtime uses only the standard library.
-- Follow module boundaries in docs/architecture.md. Document behavior and
-  rationale in docstrings or docs; do not add Python inline comments.
-- Keep coordination state outside target repositories. Preserve native CLI
-  authentication and permissions; never add bypass flags.
-- Read the implementation before changing launch, identity, or process handling.
-- Reservations are advisory. Do not describe them as enforced filesystem locks.
-- Use RTK explicitly for development commands when available.
-- Do not add generator credits, assistant attribution, robot signatures, or
-  assistant coauthor trailers to code, commits, PRs, issues, or comments.
-  Use neutral contribution and release text. Enforce this through the policy
-  and PR hygiene gates; do not remove required license notices.
-- Run focused checks while editing. The final gate is `make check`, also used by CI.
-- Integration tests use real local MCP transport and temporary Git repositories.
-  Distinguish those results from verification of live model behavior.
+- This app is **local for now**. It is not a web/published product.
+  Do not treat it as hosted, and do not deploy or publish it.
+- Agent Parley and `Movies_Projects` are made for each other: Parley is
+  the coordination app built specifically to coordinate
+  `andreathar/Movies_Projects` (in code: `activeProject = 'movies_projects'`,
+  `targetRepo = 'andreathar/Movies_Projects'` in `server.ts`).
+  Keep that fit; do not generalise it away without an explicit decision.
+
+## Source of truth for progress
+
+- The **database is the source of progress**. Current base: SQLite in
+  `src/server/stateStore.ts` (default `data/agent-parley.sqlite3`,
+  `AGENT_PARLEY_DB_PATH` overrides it).
+- Never create scattered JSON files to track progress, claims, lanes or
+  status. Seed JSON/TS in `src/data/` is first-boot/recovery fallback only.
+- If new state needs persisting, put it in the database behind an
+  approved design — do not invent a new schema or a side file on your own.
+
+## Working rules
+
+- Run locally: `npm run dev` / `npm start` (`tsx server-entry.ts`),
+  server on `127.0.0.1:3000` by default. Local MCP: `POST /api/mcp`.
+- Checks: `npm run lint`, `npm run build`, `npm run test:persistence`,
+  `npm run test:security`, `npm run test:observer` — use what the change touches.
+- No commit, push, merge or deploy without Andre's explicit approval.
+- Never read, print or commit secret values; refer to secrets only by
+  variable name (see `.env.example`).
+- Do not delete code or data to "clean up". Archive moves need approval.
+- There is no Python CLI in this repo and no `CONTRIBUTING.md`; do not
+  follow instructions that assume them. `docs/arquivo/` is archive, not
+  required reading.
+
+## Canonical notes outside this repo
+
+Team coordination state (latest status and decisions) lives on the box in
+`/workspace/ops/dev/` — `agent-parley-latest.md` and
+`agent-parley-decisoes.md` are the source there. Those files record
+history; this repo's docs are a clean implementation base and stay free
+of task history.
