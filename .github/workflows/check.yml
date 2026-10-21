@@ -153,7 +153,7 @@ jobs:
           fetch-depth: 0
       - id: setup
         name: Set up WSL
-        uses: Vampire/setup-wsl@d1da7f2c0322a5ee4f24975344f67fc0f5baf364
+        uses: Vampire/setup-wsl@4c48163d9f981914dd8caa0fc335fe19cca5bff4
         continue-on-error: true
         timeout-minutes: 8
         with:
@@ -161,7 +161,7 @@ jobs:
           additional-packages: git python3 curl ca-certificates
       - name: Set up WSL again after a failed or hung first attempt
         if: steps.setup.outcome != 'success'
-        uses: Vampire/setup-wsl@d1da7f2c0322a5ee4f24975344f67fc0f5baf364
+        uses: Vampire/setup-wsl@4c48163d9f981914dd8caa0fc335fe19cca5bff4
         timeout-minutes: 8
         with:
           distribution: Ubuntu-24.04
