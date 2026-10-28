@@ -74,7 +74,7 @@ jobs:
         run: python3 -m scripts.release_publish stage
       - name: Publish to PyPI
         if: steps.stage.outputs.pending == 'true'
-        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33
+        uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086
         with:
           packages-dir: dist/pypi
           print-hash: true
